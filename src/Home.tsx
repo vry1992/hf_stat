@@ -102,52 +102,65 @@ export const Home = () => {
 
   return (
     <div>
-      <input type="file" onChange={handleFile} accept=".xlsx, .xlsm" />
       <div>
-        <ConfigProvider locale={ukUA}>
-          <RangePicker
-            placeholder={['Дата початку', 'До тепер']}
-            allowEmpty={[false, false]}
-            value={range}
-            onChange={handleDateRange}
-          />
-        </ConfigProvider>
-      </div>
-
-      <div>
-        <Select
-          showSearch
-          placeholder="Оберіть деталізацію"
-          optionFilterProp="label"
-          onChange={onChangeDetalization}
-          value={detalization}
-          options={[
-            {
-              value: 'day',
-              label: 'До дня',
-            },
-            {
-              value: 'hour',
-              label: 'До години',
-            },
-          ]}
+        <label htmlFor="file">Оберіть файл: </label>
+        <input
+          type="file"
+          id="file"
+          onChange={handleFile}
+          accept=".xlsx, .xlsm"
         />
-      </div>
+        <br />
+        <br />
+        <div>
+          <ConfigProvider locale={ukUA}>
+            <label>Оберіть період часу для аналізу: </label>
+            <RangePicker
+              placeholder={['Дата початку', 'До тепер']}
+              allowEmpty={[false, false]}
+              value={range}
+              onChange={handleDateRange}
+            />
+          </ConfigProvider>
+        </div>
+        <br />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        {sheetNames.map((sheetName, idx) => (
-          <div key={`${idx}_${sheetName}`} style={{ marginLeft: '10px' }}>
-            <label htmlFor={sheetName}>
-              {sheetName}
-              <input
-                type="checkbox"
-                onChange={handleSheetSelection}
-                checked={selectedSheets.includes(sheetName)}
-                name={sheetName}
-              />
-            </label>
-          </div>
-        ))}
+        <div>
+          <label>Оберіть рівень деталізації: </label>
+          <Select
+            showSearch
+            placeholder="Оберіть деталізацію"
+            optionFilterProp="label"
+            onChange={onChangeDetalization}
+            value={detalization}
+            options={[
+              {
+                value: 'day',
+                label: 'До дня',
+              },
+              {
+                value: 'hour',
+                label: 'До години',
+              },
+            ]}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {sheetNames.map((sheetName, idx) => (
+            <div key={`${idx}_${sheetName}`} style={{ marginLeft: '10px' }}>
+              <label htmlFor={sheetName}>
+                {sheetName}
+                <input
+                  type="checkbox"
+                  onChange={handleSheetSelection}
+                  checked={selectedSheets.includes(sheetName)}
+                  name={sheetName}
+                />
+              </label>
+            </div>
+          ))}
+        </div>
       </div>
 
       {data &&
