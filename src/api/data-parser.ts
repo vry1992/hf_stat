@@ -26,6 +26,12 @@ export type ChartItemType = { key: string; count: number; name?: string };
 export type ChartDataType = {
   [key: string]: ChartItemType;
 };
+
+export type SheetAnalysisResultType = {
+  fullName: string;
+  data: ChartItemType[];
+};
+
 class DataParser {
   private data: FilePayload | null = null;
   private diff: number = 0;
@@ -50,12 +56,23 @@ class DataParser {
     sheetName: string,
     range: [Dayjs, Dayjs],
     detalization: 'day' | 'hour'
-  ): ChartItemType[] {
-    if (!this.data) return [];
+  ): SheetAnalysisResultType {
+    if (!this.data)
+      return {
+        data: [],
+        fullName: '',
+      };
 
     const sheetData = this.data.Sheets[sheetName];
 
-    return this.getDateTimeData(sheetData, range, detalization);
+    const fullName = sheetData[config.networkNameCellName].v;
+
+    const data = this.getDateTimeData(sheetData, range, detalization);
+
+    return {
+      data,
+      fullName,
+    };
   }
 
   getDateTimeData(

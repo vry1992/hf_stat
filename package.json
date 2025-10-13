@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "antd": "^5.27.4",
+    "colorspace": "^1.1.4",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.18",
     "react": "^19.1.1",
