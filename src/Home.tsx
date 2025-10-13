@@ -8,6 +8,7 @@ import React, { ChangeEvent, FC, useCallback, useState } from 'react';
 import {
   Bar,
   BarChart,
+  Brush,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -323,7 +324,7 @@ export const Home = () => {
               {/* @ts-ignore */}
               <Tooltip content={(props) => <CustomTooltip {...props} />} />
               <CartesianGrid strokeDasharray="3 3" />
-
+              <Brush dataKey="key" height={30} stroke="#8884d8" />
               {Object.values(data).map(({ fullName }) => (
                 <Bar
                   key={fullName}
