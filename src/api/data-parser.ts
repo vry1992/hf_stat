@@ -21,7 +21,7 @@ const config = {
   },
 };
 
-export type ChartItemType = { key: string; count: number; name?: string };
+export type ChartItemType = { key: string; count: number };
 
 export type ChartDataType = {
   [key: string]: ChartItemType;

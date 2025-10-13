@@ -4,7 +4,7 @@ import colorspace from 'colorspace';
 import { addDays } from 'date-fns';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/uk';
-import React, { ChangeEvent, useCallback, useState } from 'react';
+import React, { ChangeEvent, FC, useCallback, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -135,6 +135,71 @@ export const Home = () => {
       return row;
     });
   }, [data, overlapMode]);
+
+  const CustomTooltip: FC<{
+    active: boolean;
+    payload: { name: string; value: number; color: string }[];
+    label: string;
+  }> = ({ active, payload, label }) => {
+    const isVisible = active && payload && payload.length;
+
+    if (!isVisible) return;
+
+    return (
+      <div
+        style={{
+          background: '#fff',
+          padding: 10,
+          border: '1px solid #00000050',
+        }}>
+        <h4>{label}</h4>
+        {payload
+          .sort((a, b) => {
+            return b.value - a.value;
+          })
+          .map(({ name, value, color }) => {
+            return (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'left',
+                  alignItems: 'center',
+                  paddingRight: 10,
+                }}>
+                <div
+                  style={{
+                    background: color,
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    paddingRight: 10,
+                    marginRight: 10,
+                  }}></div>
+                <p key={name}>
+                  <span>{name}:</span>{' '}
+                  <span style={{ fontWeight: 'bold' }}>{value}</span>
+                </p>
+              </div>
+            );
+          })}
+      </div>
+    );
+
+    // console.log(active, payload, label);
+    // return (
+    //   <div
+    //     className="custom-tooltip"
+    //     style={{ visibility: isVisible ? 'visible' : 'hidden' }}>
+    //     {isVisible && (
+    //       <>
+    //         <p className="label">{`${label} : ${payload[0].value}`}</p>
+    //         {/* <p className="intro">{getIntroOfPage(label)}</p> */}
+    //         <p className="desc">Anything you want can be displayed here.</p>
+    //       </>
+    //     )}
+    //   </div>
+    // );
+  };
 
   return (
     <div>
@@ -270,10 +335,11 @@ export const Home = () => {
                 tickMargin={1}
               />
               <YAxis />
-              <Tooltip />
+              {/* @ts-ignore */}
+              <Tooltip content={(props) => <CustomTooltip {...props} />} />
               <CartesianGrid strokeDasharray="3 3" />
 
-              {Object.values(data).map(({ fullName }, i) => (
+              {Object.values(data).map(({ fullName }) => (
                 <Bar
                   key={fullName}
                   dataKey={fullName}
