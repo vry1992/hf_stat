@@ -36,7 +36,7 @@ const CustomTooltip: FC<{
   return (
     <div
       style={{
-        background: '#fff',
+        background: '#ffffff99',
         padding: 10,
         border: '1px solid #00000050',
       }}>
