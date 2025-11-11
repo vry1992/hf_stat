@@ -15,12 +15,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { FullScreenSpinner } from './Spinner';
 import {
   ChartItemType,
   SheetAnalysisResultType,
   dataParser,
 } from './api/data-parser';
 import { excelReader } from './api/excel-reader';
+import { exportTablesToPdf } from './api/export-pdf';
 
 // *******************
 
@@ -107,6 +109,7 @@ export const CustomTick: React.FC<
 // *******************
 
 const { RangePicker } = DatePicker;
+const className = 'export-class';
 
 const currentDate = new Date();
 const defaultFrom = dayjs(addDays(currentDate, -3));
@@ -169,6 +172,15 @@ export const Home = () => {
   const [data, setData] = useState<{ [name: string]: SheetAnalysisResultType }>(
     {}
   );
+  const [overlapMode, setOverlapMode] = useState(false);
+
+  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
+  const [detalization, setDetalization] = useState<'day' | 'hour'>('day');
+  const [pending, setPending] = useState(false);
+
+  const hasCharts = !!Object.keys(data).length;
+  const readFile = !!sheetNames.length;
 
   const counts = Object.values(data)
     .reduce<ChartItemType[]>((acc, curr) => {
@@ -178,11 +190,20 @@ export const Home = () => {
 
   const globalMax = Math.max(...counts);
 
-  const [overlapMode, setOverlapMode] = useState(false);
+  const runExport = async () => {
+    try {
+      const name = `Експорт р/м ${range[0].format(
+        'DD.MM.YYYY HH.mm'
+      )} - ${range[1].format('DD.MM.YYYY HH.mm')}`;
 
-  const [sheetNames, setSheetNames] = useState<string[]>([]);
-  const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
-  const [detalization, setDetalization] = useState<'day' | 'hour'>('day');
+      setPending(true);
+      await exportTablesToPdf(className, name);
+    } catch (error) {
+      alert('Помилка експорту');
+    } finally {
+      setPending(false);
+    }
+  };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -288,6 +309,7 @@ export const Home = () => {
 
   return (
     <div>
+      {pending && <FullScreenSpinner />}
       <div>
         <label htmlFor="file">Оберіть файл: </label>
         <input
@@ -306,6 +328,7 @@ export const Home = () => {
               allowEmpty={[false, false]}
               value={range}
               onChange={handleDateRange}
+              disabled={!readFile}
             />
           </ConfigProvider>
         </div>
@@ -316,6 +339,7 @@ export const Home = () => {
             Режим накладання увімкнено
             <input
               type="checkbox"
+              disabled={!readFile}
               onChange={() => setOverlapMode(!overlapMode)}
               checked={overlapMode}
               name={'overlapMode'}
@@ -327,6 +351,7 @@ export const Home = () => {
           <label>Оберіть рівень деталізації: </label>
           <Select
             showSearch
+            disabled={!readFile}
             placeholder="Оберіть деталізацію"
             optionFilterProp="label"
             onChange={onChangeDetalization}
@@ -343,6 +368,10 @@ export const Home = () => {
             ]}
           />
         </div>
+
+        {hasCharts ? (
+          <button onClick={runExport}>Експортувати в PDF</button>
+        ) : null}
 
         <div className="all_checkboxes_container">
           {sheetNames
@@ -376,7 +405,8 @@ export const Home = () => {
           return (
             <div
               key={i}
-              style={{ width: '100vw', height: '400px', marginBottom: '40px' }}>
+              style={{ width: '100vw', height: '400px', marginBottom: '40px' }}
+              className={className}>
               <p style={{ textAlign: 'center', fontWeight: 'bold' }}>
                 {dataItem.fullName}
               </p>
@@ -391,7 +421,7 @@ export const Home = () => {
                     padding={{ left: 10, right: 10 }}
                     angle={-90}
                     textAnchor="end"
-                    height={170}
+                    height={110}
                     tickMargin={1}
                     allowDecimals={false}
                     tick={(props) => (
