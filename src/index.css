@@ -71,3 +71,25 @@ p, h5 {
   margin: 0;
   padding: 0;
 }
+
+.all_checkboxes_container {
+  display: flex;
+  justify-content: space-between;
+  padding: 40px 20px;
+}
+
+.select_sheet_checkbox__container {
+  padding: 5px;
+  margin-left: 10px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.select_sheet_checkbox__container:hover {
+  background-color: #00ff0050;
+  transition: all .2s ease;
+}
+
+.select_sheet_label, .select_sheet_checkbox {
+  cursor: pointer;
+}

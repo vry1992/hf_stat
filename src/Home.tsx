@@ -15,14 +15,104 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { SheetAnalysisResultType, dataParser } from './api/data-parser';
+import {
+  ChartItemType,
+  SheetAnalysisResultType,
+  dataParser,
+} from './api/data-parser';
 import { excelReader } from './api/excel-reader';
+
+// *******************
+
+const daysShortUA = ['нд', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+const dayColors: Record<string, string> = {
+  пн: '#cce5ff',
+  вт: '#d4edda',
+  ср: '#fff3cd',
+  чт: '#d1ecf1',
+  пт: '#e2ccff',
+  сб: '#ccd9ff',
+  нд: '#f8d7da',
+};
+
+type CustomTickProps = {
+  x?: number;
+  y?: number;
+  payload?: { value: string };
+  detalization: 'day' | 'hour';
+};
+
+export const CustomTick: React.FC<
+  CustomTickProps & {
+    hoveredDay?: string | null;
+    setHoveredDay?: (day: string | null) => void;
+  }
+> = ({ x = 0, y = 0, payload, detalization, hoveredDay, setHoveredDay }) => {
+  const key = payload?.value ?? '';
+  const [datePart, time] = key.split(' ');
+  const [day, month, year] = datePart.split('.');
+  const date = dayjs(`${year}-${month}-${day}`);
+  const dayName = daysShortUA[date.day()];
+  const color = dayColors[dayName] || '#eee';
+
+  const isHovered = hoveredDay === dayName;
+
+  const dateText =
+    detalization === 'hour'
+      ? `${day}.${month} ${time ?? ''}`
+      : `${day}.${month}`;
+  const dayText = ` (${dayName})`;
+
+  return (
+    <g
+      transform={`translate(${x},${y})`}
+      onMouseEnter={() => setHoveredDay?.(dayName)}
+      onMouseLeave={() => setHoveredDay?.(null)}
+      style={{ cursor: 'pointer' }}>
+      <rect
+        x={-10}
+        y={-2}
+        width={20}
+        height={detalization === 'day' ? 63 : 100}
+        fill={isHovered ? '#ffd580' : color}
+        rx={3}
+        opacity={isHovered ? 1 : 0.5}
+      />
+
+      <text
+        transform="rotate(-90)"
+        x={-27}
+        y={5}
+        textAnchor="end"
+        fontSize={11}
+        fill={isHovered ? '#000' : '#333'}
+        fontWeight={isHovered ? 'bold' : 'normal'}>
+        {dateText}
+      </text>
+
+      <text
+        transform="rotate(-90)"
+        x={-3}
+        y={5}
+        textAnchor="end"
+        fontSize={10}
+        fill={isHovered ? '#000' : '#444'}
+        fontWeight={isHovered ? 'bold' : 'normal'}>
+        {dayText}
+      </text>
+    </g>
+  );
+};
+
+// *******************
 
 const { RangePicker } = DatePicker;
 
 const currentDate = new Date();
 const defaultFrom = dayjs(addDays(currentDate, -3));
 const defaultTo = dayjs(currentDate);
+
+const blackListCheckboxes = ['пошук', 'посилання'].map((n) => n.toLowerCase());
 
 const CustomTooltip: FC<{
   active: boolean;
@@ -75,9 +165,18 @@ const CustomTooltip: FC<{
 };
 
 export const Home = () => {
+  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [data, setData] = useState<{ [name: string]: SheetAnalysisResultType }>(
     {}
   );
+
+  const counts = Object.values(data)
+    .reduce<ChartItemType[]>((acc, curr) => {
+      return [...acc, ...curr.data];
+    }, [])
+    .map(({ count }) => count);
+
+  const globalMax = Math.max(...counts);
 
   const [overlapMode, setOverlapMode] = useState(false);
 
@@ -245,27 +344,35 @@ export const Home = () => {
           />
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          {sheetNames.map((sheetName, idx) => (
-            <div key={`${idx}_${sheetName}`} style={{ marginLeft: '10px' }}>
-              <label htmlFor={sheetName}>
-                {sheetName}
-                <input
-                  type="checkbox"
-                  onChange={handleSheetSelection}
-                  checked={!!data[sheetName]}
-                  name={sheetName}
-                />
-              </label>
-            </div>
-          ))}
+        <div className="all_checkboxes_container">
+          {sheetNames
+            .filter(
+              (sheetName) =>
+                !blackListCheckboxes.includes(sheetName.toLowerCase())
+            )
+            .map((sheetName, idx) => (
+              <div
+                key={`${idx}_${sheetName}`}
+                className="select_sheet_checkbox__container">
+                <label htmlFor={sheetName} className="select_sheet_label">
+                  {sheetName}
+                  <input
+                    className="select_sheet_checkbox"
+                    id={sheetName}
+                    type="checkbox"
+                    onChange={handleSheetSelection}
+                    checked={!!data[sheetName]}
+                    name={sheetName}
+                  />
+                </label>
+              </div>
+            ))}
         </div>
       </div>
 
       {data &&
         !overlapMode &&
         Object.values(data).map((dataItem, i) => {
-          console.log(data);
           return (
             <div
               key={i}
@@ -284,11 +391,21 @@ export const Home = () => {
                     padding={{ left: 10, right: 10 }}
                     angle={-90}
                     textAnchor="end"
-                    height={150}
-                    tick={{ dy: 10 }}
+                    height={170}
                     tickMargin={1}
+                    allowDecimals={false}
+                    tick={(props) => (
+                      <CustomTick
+                        {...props}
+                        detalization={detalization}
+                        hoveredDay={hoveredDay}
+                        setHoveredDay={setHoveredDay}
+                      />
+                    )}
+                    interval="preserveStartEnd"
                   />
-                  <YAxis />
+                  <CartesianGrid stroke="#ccc" strokeDasharray="5 5" />
+                  <YAxis domain={[0, globalMax]} allowDecimals={false} />
                   <Tooltip />
                   <CartesianGrid strokeDasharray="3 3" />
                   <Bar
@@ -317,10 +434,17 @@ export const Home = () => {
                 angle={-90}
                 textAnchor="end"
                 height={150}
-                tick={{ dy: 10 }}
                 tickMargin={1}
+                tick={(props) => (
+                  <CustomTick
+                    {...props}
+                    detalization={detalization}
+                    hoveredDay={hoveredDay}
+                    setHoveredDay={setHoveredDay}
+                  />
+                )}
               />
-              <YAxis />
+              <YAxis allowDecimals={false} />
               {/* @ts-ignore */}
               <Tooltip content={(props) => <CustomTooltip {...props} />} />
               <CartesianGrid strokeDasharray="3 3" />
