@@ -174,13 +174,13 @@ export const Home = () => {
   );
   const [overlapMode, setOverlapMode] = useState(false);
 
-  const [sheetNames, setSheetNames] = useState<string[]>([]);
+  const [networkNames, setNetworkNames] = useState<string[]>([]);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
   const [detalization, setDetalization] = useState<'day' | 'hour'>('day');
   const [pending, setPending] = useState(false);
 
   const hasCharts = !!Object.keys(data).length;
-  const readFile = !!sheetNames.length;
+  const readFile = !!networkNames.length;
 
   const counts = Object.values(data)
     .reduce<ChartItemType[]>((acc, curr) => {
@@ -213,8 +213,10 @@ export const Home = () => {
       if (evt?.target?.result) {
         const fileData = new Uint8Array(evt.target.result as ArrayBuffer);
         const data = excelReader.read(fileData);
+
         dataParser.init(data);
-        setSheetNames(dataParser.sheetNames);
+        const names = dataParser.getSheetNames();
+        setNetworkNames(names);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -374,7 +376,7 @@ export const Home = () => {
         ) : null}
 
         <div className="all_checkboxes_container">
-          {sheetNames
+          {networkNames
             .filter(
               (sheetName) =>
                 !blackListCheckboxes.includes(sheetName.toLowerCase())
@@ -384,7 +386,6 @@ export const Home = () => {
                 key={`${idx}_${sheetName}`}
                 className="select_sheet_checkbox__container">
                 <label htmlFor={sheetName} className="select_sheet_label">
-                  {sheetName}
                   <input
                     className="select_sheet_checkbox"
                     id={sheetName}
@@ -393,6 +394,7 @@ export const Home = () => {
                     checked={!!data[sheetName]}
                     name={sheetName}
                   />
+                  {sheetName}
                 </label>
               </div>
             ))}

@@ -1,14 +1,21 @@
 import { addDays, addHours } from 'date-fns';
 import dayjs, { Dayjs } from 'dayjs';
-import { CellObject, SSF, WorkSheet } from 'xlsx';
+import { CellObject, SSF, WorkSheet, utils } from 'xlsx';
 import { FilePayload } from './types';
 
 const config = {
-  serviceSheets: ['Посилання'],
-  networkNameCellName: 'A1',
-  dateCollName: 'A',
-  timeCollName: 'B',
-  dataStartRow: 4,
+  dataSheet: 'ЖОРР',
+  dataBaseSheet: 'Частоти',
+  dataSheetConfig: {
+    dateCollName: 'B',
+    timeCollName: 'C',
+    frequencyCollName: 'F',
+    dataStartRow: 3,
+  },
+  dataBaseConfig: {
+    networkName: 'B',
+    frequency: 'A',
+  },
   detalization: {
     day: {
       format: 'DD.MM.YYYY',
@@ -37,6 +44,7 @@ class DataParser {
   private diff: number = 0;
   private range: [Dayjs, Dayjs] | [] = [];
   private detalization: 'day' | 'hour' = 'day';
+  private networkNameToFrequncyMap: Record<string, number[]> = {};
 
   init(content: FilePayload) {
     this.data = content;
@@ -52,8 +60,41 @@ class DataParser {
     return dayjs(new Date(y, m - 1, d, H, M));
   }
 
+  getSheetNames(): string[] {
+    if (!this.data) {
+      return [];
+    }
+    const database = this.data.Sheets[config.dataBaseSheet];
+
+    const {
+      e: { r, c },
+    } = utils.decode_range(database['!ref']!);
+
+    const names: string[] = [];
+
+    for (let i = 2; i < +(r / c).toFixed(); i++) {
+      const networkNameCellKey = `${config.dataBaseConfig.networkName}${i}`;
+      const frequncyCellKey = `${config.dataBaseConfig.frequency}${i}`;
+      let name = '';
+      if (database[networkNameCellKey]) {
+        const value: string = database[networkNameCellKey].v;
+        name = value;
+        if (!names.includes(value)) {
+          names.push(value);
+        }
+      }
+      if (name) {
+        const prev = this.networkNameToFrequncyMap[name] || [];
+        const value: number = database[frequncyCellKey].v;
+        this.networkNameToFrequncyMap[name] = [...new Set([...prev, value])];
+      }
+    }
+
+    return names;
+  }
+
   analyzeSheet(
-    sheetName: string,
+    networkName: string,
     range: [Dayjs, Dayjs],
     detalization: 'day' | 'hour'
   ): SheetAnalysisResultType {
@@ -63,11 +104,17 @@ class DataParser {
         fullName: '',
       };
 
-    const sheetData = this.data.Sheets[sheetName];
+    const sheetData = this.data.Sheets[config.dataSheet];
+    const frequencies = this.networkNameToFrequncyMap[networkName];
 
-    const fullName = sheetData[config.networkNameCellName].v;
+    const fullName = networkName;
 
-    const data = this.getDateTimeData(sheetData, range, detalization);
+    const data = this.getDateTimeData(
+      sheetData,
+      range,
+      detalization,
+      frequencies
+    );
 
     return {
       data,
@@ -78,7 +125,8 @@ class DataParser {
   getDateTimeData(
     sheetData: WorkSheet,
     range: [Dayjs, Dayjs],
-    detalization: 'day' | 'hour'
+    detalization: 'day' | 'hour',
+    frequencies: number[]
   ): ChartItemType[] {
     const maxRow = Number(
       sheetData['!ref']?.split(':')[1].replace(new RegExp('[A-Z]*'), '')
@@ -88,11 +136,17 @@ class DataParser {
     this.range = range;
     this.detalization = detalization;
 
-    for (let i = config.dataStartRow; i <= maxRow; i++) {
-      const dateCellKey = `${config.dateCollName}${i}`;
-      const timeCellKey = `${config.timeCollName}${i}`;
+    for (let i = config.dataSheetConfig.dataStartRow; i <= maxRow; i++) {
+      const freqCellKey = `${config.dataSheetConfig.frequencyCollName}${i}`;
+      const freq: CellObject | undefined = sheetData[freqCellKey];
+
+      if (!freq?.v || !frequencies.includes(freq?.v as number)) continue;
+
+      const dateCellKey = `${config.dataSheetConfig.dateCollName}${i}`;
+      const timeCellKey = `${config.dataSheetConfig.timeCollName}${i}`;
       const date: CellObject | undefined = sheetData[dateCellKey];
       const time: CellObject | undefined = sheetData[timeCellKey];
+
       if (
         typeof date?.v === 'number' &&
         typeof time?.v === 'number' &&
@@ -108,6 +162,8 @@ class DataParser {
         if (matchRange) {
           chartData.push(dateData);
         }
+
+        if (dateData > range[1]) break;
       }
     }
 
