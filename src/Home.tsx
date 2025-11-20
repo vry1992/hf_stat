@@ -178,6 +178,7 @@ export const Home = () => {
   const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
   const [detalization, setDetalization] = useState<'day' | 'hour'>('day');
   const [pending, setPending] = useState(false);
+  const [minDate, setMinDate] = useState<Dayjs | undefined>();
 
   const hasCharts = !!Object.keys(data).length;
   const readFile = !!networkNames.length;
@@ -216,6 +217,7 @@ export const Home = () => {
 
         dataParser.init(data);
         const names = dataParser.getSheetNames();
+        setMinDate(dataParser.getMinDate());
         setNetworkNames(names);
       }
     };
@@ -331,6 +333,8 @@ export const Home = () => {
               value={range}
               onChange={handleDateRange}
               disabled={!readFile}
+              maxDate={dayjs()}
+              minDate={minDate}
             />
           </ConfigProvider>
         </div>

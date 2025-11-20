@@ -54,6 +54,22 @@ class DataParser {
     return this.data?.SheetNames || [];
   }
 
+  getMinDate() {
+    if (!this.data) {
+      return;
+    }
+
+    const dateCellKey = `${config.dataSheetConfig.dateCollName}3`;
+    const xslxDate: number = this.data.Sheets[config.dataSheet][dateCellKey].v;
+
+    if (xslxDate && typeof xslxDate === 'number') {
+      const dateData = this.convertExcelDateToJsDate(xslxDate, 0);
+      return dateData;
+    }
+
+    return;
+  }
+
   private convertExcelDateToJsDate(xDate: number, xTime: number) {
     const { y, m, d, H, M } = SSF.parse_date_code(xDate + xTime);
 
