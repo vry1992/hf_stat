@@ -238,6 +238,7 @@ export const Home = () => {
           range,
           detalization
         );
+
         setData((prev) => {
           return {
             ...prev,
@@ -254,6 +255,7 @@ export const Home = () => {
     _dateStrings
   ) => {
     if (dates && dates[0] && dates[1]) {
+      dates[1] = dates[1].endOf('day');
       setRange(dates as [Dayjs, Dayjs]);
 
       const selectedSheets = Object.keys(data);

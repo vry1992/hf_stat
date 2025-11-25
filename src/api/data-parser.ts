@@ -88,7 +88,7 @@ class DataParser {
 
     const names: string[] = [];
 
-    for (let i = 2; i < +(r / c).toFixed(); i++) {
+    for (let i = 2; i < r; i++) {
       const networkNameCellKey = `${config.dataBaseConfig.networkName}${i}`;
       const frequncyCellKey = `${config.dataBaseConfig.frequency}${i}`;
       let name = '';
@@ -173,13 +173,12 @@ class DataParser {
           date.v as number,
           time.v as number
         );
-        const matchRange = dateData >= range[0] && dateData <= range[1];
+
+        const matchRange = dateData > range[0] && dateData < range[1];
 
         if (matchRange) {
           chartData.push(dateData);
         }
-
-        if (dateData > range[1]) break;
       }
     }
 
