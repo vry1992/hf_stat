@@ -18,6 +18,7 @@ import {
 import { FullScreenSpinner } from './Spinner';
 import {
   ChartItemType,
+  Detelization,
   SheetAnalysisResultType,
   dataParser,
 } from './api/data-parser';
@@ -41,7 +42,7 @@ type CustomTickProps = {
   x?: number;
   y?: number;
   payload?: { value: string };
-  detalization: 'day' | 'hour';
+  detalization: Detelization;
 };
 
 export const CustomTick: React.FC<
@@ -60,7 +61,7 @@ export const CustomTick: React.FC<
   const isHovered = hoveredDay === dayName;
 
   const dateText =
-    detalization === 'hour'
+    detalization === 'hour' || detalization === 'minute'
       ? `${day}.${month} ${time ?? ''}`
       : `${day}.${month}`;
   const dayText = ` (${dayName})`;
@@ -68,8 +69,8 @@ export const CustomTick: React.FC<
   return (
     <g
       transform={`translate(${x},${y})`}
-      onMouseEnter={() => setHoveredDay?.(dayName)}
-      onMouseLeave={() => setHoveredDay?.(null)}
+      onMouseEnter={() => detalization !== 'minute' && setHoveredDay?.(dayName)}
+      onMouseLeave={() => detalization !== 'minute' && setHoveredDay?.(null)}
       style={{ cursor: 'pointer' }}>
       <rect
         x={-10}
@@ -176,12 +177,19 @@ export const Home = () => {
 
   const [networkNames, setNetworkNames] = useState<string[]>([]);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
-  const [detalization, setDetalization] = useState<'day' | 'hour'>('day');
+  const [detalization, setDetalization] = useState<Detelization>('day');
   const [pending, setPending] = useState(false);
   const [minDate, setMinDate] = useState<Dayjs | undefined>();
 
   const hasCharts = !!Object.keys(data).length;
   const readFile = !!networkNames.length;
+
+  const allowMinuteDetalization =
+    detalization === 'hour'
+      ? range[1].diff(range[0], 'hour') <= 24
+      : detalization === 'day'
+      ? range[1].diff(range[0], 'day') <= 1
+      : false;
 
   const counts = Object.values(data)
     .reduce<ChartItemType[]>((acc, curr) => {
@@ -256,6 +264,16 @@ export const Home = () => {
   ) => {
     if (dates && dates[0] && dates[1]) {
       dates[1] = dates[1].endOf('day');
+      let det = detalization;
+      let changeDetalization = false;
+      if (detalization === 'minute') {
+        changeDetalization = dates[1].diff(dates[0], 'minute') > 1440;
+        if (changeDetalization) {
+          det = 'hour';
+          setDetalization(det);
+        }
+      }
+
       setRange(dates as [Dayjs, Dayjs]);
 
       const selectedSheets = Object.keys(data);
@@ -266,7 +284,7 @@ export const Home = () => {
         const chartData: SheetAnalysisResultType = dataParser.analyzeSheet(
           sheetName,
           dates as [Dayjs, Dayjs],
-          detalization
+          det
         );
         nextDataState[sheetName] = chartData;
       });
@@ -275,7 +293,7 @@ export const Home = () => {
     }
   };
 
-  const onChangeDetalization = (value: 'day' | 'hour') => {
+  const onChangeDetalization = (value: Detelization) => {
     setDetalization(value);
 
     const nextDataState = {};
@@ -357,8 +375,9 @@ export const Home = () => {
 
         <div>
           <label>Оберіть рівень деталізації: </label>
-          <Select
+          <Select<Detelization>
             showSearch
+            style={{ width: 400 }}
             disabled={!readFile}
             placeholder="Оберіть деталізацію"
             optionFilterProp="label"
@@ -372,6 +391,15 @@ export const Home = () => {
               {
                 value: 'hour',
                 label: 'До години',
+              },
+              {
+                value: 'minute',
+                label: `${
+                  !allowMinuteDetalization && detalization !== 'minute'
+                    ? 'Зменшіть період до 2х днів для вибору "До хвилини"'
+                    : 'До хвилини'
+                }`,
+                disabled: !allowMinuteDetalization,
               },
             ]}
           />
@@ -422,6 +450,7 @@ export const Home = () => {
                 <BarChart
                   data={dataItem.data}
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  syncId="anyId"
                   barSize={20}>
                   <XAxis
                     dataKey="key"
@@ -445,6 +474,14 @@ export const Home = () => {
                   <CartesianGrid stroke="#ccc" strokeDasharray="5 5" />
                   <YAxis domain={[0, globalMax]} allowDecimals={false} />
                   <Tooltip />
+                  {i === 0 ? (
+                    <Brush
+                      dataKey="key"
+                      height={30}
+                      stroke="#8884d8"
+                      gap={10}
+                    />
+                  ) : null}
                   <CartesianGrid strokeDasharray="3 3" />
                   <Bar
                     dataKey="count"

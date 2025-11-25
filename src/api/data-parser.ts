@@ -1,4 +1,4 @@
-import { addDays, addHours } from 'date-fns';
+import { addDays, addHours, addMinutes } from 'date-fns';
 import dayjs, { Dayjs } from 'dayjs';
 import { CellObject, SSF, WorkSheet, utils } from 'xlsx';
 import { FilePayload } from './types';
@@ -19,11 +19,12 @@ const config = {
   detalization: {
     day: {
       format: 'DD.MM.YYYY',
-      fixerDiff: 1,
     },
     hour: {
       format: 'DD.MM.YYYY HH:mm',
-      fixerDiff: 24,
+    },
+    minute: {
+      format: 'DD.MM.YYYY HH:mm',
     },
   },
 };
@@ -39,11 +40,13 @@ export type SheetAnalysisResultType = {
   data: ChartItemType[];
 };
 
+export type Detelization = 'day' | 'hour' | 'minute';
+
 class DataParser {
   private data: FilePayload | null = null;
   private diff: number = 0;
   private range: [Dayjs, Dayjs] | [] = [];
-  private detalization: 'day' | 'hour' = 'day';
+  private detalization: Detelization = 'day';
   private networkNameToFrequncyMap: Record<string, number[]> = {};
 
   init(content: FilePayload) {
@@ -112,7 +115,7 @@ class DataParser {
   analyzeSheet(
     networkName: string,
     range: [Dayjs, Dayjs],
-    detalization: 'day' | 'hour'
+    detalization: Detelization
   ): SheetAnalysisResultType {
     if (!this.data)
       return {
@@ -141,7 +144,7 @@ class DataParser {
   getDateTimeData(
     sheetData: WorkSheet,
     range: [Dayjs, Dayjs],
-    detalization: 'day' | 'hour',
+    detalization: Detelization,
     frequencies: number[]
   ): ChartItemType[] {
     const maxRow = Number(
@@ -197,6 +200,8 @@ class DataParser {
           .set('millisecond', 0);
       } else if (this.detalization === 'hour') {
         dateKey = curr.set('minute', 0).set('second', 0).set('millisecond', 0);
+      } else if (this.detalization === 'minute') {
+        dateKey = curr.set('second', 0).set('millisecond', 0);
       }
 
       const dateKeyStr = dateKey.format(
@@ -221,12 +226,28 @@ class DataParser {
   }
 
   fillEmptyData(dataKeys: string[]) {
-    const modifier = this.detalization === 'day' ? addDays : addHours;
+    const modifier =
+      this.detalization === 'day'
+        ? addDays
+        : this.detalization === 'hour'
+        ? addHours
+        : addMinutes;
     const res = {};
     for (let i = 0; i <= this.diff; i++) {
-      const dateKeyStr = dayjs(
-        modifier(this.range[0]?.set('minute', 0)?.toDate() || new Date(), i)
-      )?.format(config.detalization[this.detalization as string].format);
+      const dateKeyStr =
+        this.detalization !== 'minute'
+          ? dayjs(
+              modifier(
+                this.range[0]?.set('minute', 0)?.toDate() || new Date(),
+                i
+              )
+            )?.format(config.detalization[this.detalization as string].format)
+          : dayjs(
+              modifier(
+                this.range[0]?.set('second', 0)?.toDate() || new Date(),
+                i
+              )
+            )?.format(config.detalization[this.detalization as string].format);
 
       res[dateKeyStr] = { key: dateKeyStr, count: 0 };
     }
