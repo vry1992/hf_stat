@@ -7,12 +7,27 @@ const config = {
   dataSheet: 'ЖОРР',
   dataBaseSheet: 'Частоти',
   dataSheetConfig: {
+    json: {
+      frequency: '_4',
+      callsign: {
+        who: '_2',
+        whoom: '_3',
+      },
+    },
     dateCollName: 'B',
     timeCollName: 'C',
     frequencyCollName: 'F',
     dataStartRow: 3,
+    callsign: {
+      who: 'D',
+      whoom: 'E',
+    },
   },
   dataBaseConfig: {
+    json: {
+      networkName: 'Назва Р/М',
+      frequency: 'Частоти',
+    },
     networkName: 'B',
     frequency: 'A',
   },
@@ -30,6 +45,8 @@ const config = {
 };
 
 export type ChartItemType = { key: string; count: number };
+export type DatabaseJsonRow = { 'Назва Р/М': string; Частоти: number };
+export type ZhorrJsonRow = { frequency: number; who: string; whoom: string };
 
 export type ChartDataType = {
   [key: string]: ChartItemType;
@@ -42,12 +59,21 @@ export type SheetAnalysisResultType = {
 
 export type Detelization = 'day' | 'hour' | 'minute';
 
+export type TNetworkData = {
+  frequencies: number[];
+  callsigns: string[];
+  name: string;
+};
+
+export type TNetworkDataMap = Record<string, TNetworkData>;
+
 class DataParser {
   private data: FilePayload | null = null;
   private diff: number = 0;
   private range: [Dayjs, Dayjs] | [] = [];
   private detalization: Detelization = 'day';
   private networkNameToFrequncyMap: Record<string, number[]> = {};
+  private networkDataMap: TNetworkDataMap = {};
 
   init(content: FilePayload) {
     this.data = content;
@@ -79,37 +105,82 @@ class DataParser {
     return dayjs(new Date(y, m - 1, d, H, M));
   }
 
-  getSheetNames(): string[] {
+  getNetworkData(): TNetworkData[] {
     if (!this.data) {
       return [];
     }
     const database = this.data.Sheets[config.dataBaseSheet];
+    const zhorr = this.data.Sheets[config.dataSheet];
 
-    const {
-      e: { r, c },
-    } = utils.decode_range(database['!ref']!);
+    if (!database || !zhorr) {
+      alert(`${config.dataBaseSheet} or ${config.dataSheet} not found`);
 
-    const names: string[] = [];
-
-    for (let i = 2; i < r; i++) {
-      const networkNameCellKey = `${config.dataBaseConfig.networkName}${i}`;
-      const frequncyCellKey = `${config.dataBaseConfig.frequency}${i}`;
-      let name = '';
-      if (database[networkNameCellKey]) {
-        const value: string = database[networkNameCellKey].v;
-        name = value;
-        if (!names.includes(value)) {
-          names.push(value);
-        }
-      }
-      if (name) {
-        const prev = this.networkNameToFrequncyMap[name] || [];
-        const value: number = database[frequncyCellKey].v;
-        this.networkNameToFrequncyMap[name] = [...new Set([...prev, value])];
-      }
+      return [];
     }
 
-    return names;
+    const databaseJsonSheet: DatabaseJsonRow[] = utils.sheet_to_json(database);
+    const zhorrJsonSheet: ZhorrJsonRow[] = utils.sheet_to_json(zhorr, {
+      header: ['id', 'date', 'time', 'who', 'whoom', 'frequency'],
+    });
+
+    for (const row of databaseJsonSheet) {
+      const networkName = row[config.dataBaseConfig.json.networkName]?.trim();
+
+      if (!networkName) {
+        console.warn(row, 'Not valid network name');
+        continue;
+      }
+      const frequency = row[config.dataBaseConfig.json.frequency];
+
+      if (!this.networkDataMap[networkName]) {
+        this.networkDataMap[networkName] = {
+          frequencies: [],
+          callsigns: [],
+          name: networkName,
+        };
+      }
+      const newFrequencies = [
+        ...new Set([
+          ...this.networkDataMap[networkName].frequencies,
+          frequency,
+        ]),
+      ];
+
+      this.networkDataMap[networkName].frequencies = newFrequencies;
+    }
+
+    const clearZhorrRows = zhorrJsonSheet.filter(
+      ({ frequency }) => !!frequency
+    );
+
+    clearZhorrRows.forEach(({ frequency, who, whoom }) => {
+      let callsigns =
+        !who && !whoom
+          ? ['empty']
+          : who && whoom
+          ? [who, whoom]
+          : who
+          ? [who]
+          : [whoom];
+
+      callsigns = callsigns.map((cs) => {
+        return cs.toString().trim();
+      });
+      const matchByFrequncy = Object.values(this.networkDataMap).filter(
+        ({ frequencies }) => frequencies.includes(frequency)
+      );
+
+      matchByFrequncy.forEach(({ name }) => {
+        const newCallsigns = [
+          ...this.networkDataMap[name].callsigns,
+          ...callsigns,
+        ];
+
+        this.networkDataMap[name].callsigns = [...new Set(newCallsigns)];
+      });
+    });
+
+    return Object.values(this.networkDataMap);
   }
 
   analyzeSheet(

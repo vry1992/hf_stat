@@ -1,4 +1,12 @@
-import { ConfigProvider, DatePicker, Select } from 'antd';
+import {
+  Card,
+  Checkbox,
+  Collapse,
+  ConfigProvider,
+  DatePicker,
+  List,
+  Select,
+} from 'antd';
 import ukUA from 'antd/locale/uk_UA';
 import colorspace from 'colorspace';
 import { addDays } from 'date-fns';
@@ -20,6 +28,7 @@ import {
   ChartItemType,
   Detelization,
   SheetAnalysisResultType,
+  TNetworkData,
   dataParser,
 } from './api/data-parser';
 import { excelReader } from './api/excel-reader';
@@ -116,8 +125,6 @@ const currentDate = new Date();
 const defaultFrom = dayjs(addDays(currentDate, -3));
 const defaultTo = dayjs(currentDate);
 
-const blackListCheckboxes = ['пошук', 'посилання'].map((n) => n.toLowerCase());
-
 const CustomTooltip: FC<{
   active: boolean;
   payload: { name: string; value: number; color: string }[];
@@ -175,14 +182,14 @@ export const Home = () => {
   );
   const [overlapMode, setOverlapMode] = useState(false);
 
-  const [networkNames, setNetworkNames] = useState<string[]>([]);
+  const [networkData, setNetworkData] = useState<TNetworkData[]>([]);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
   const [detalization, setDetalization] = useState<Detelization>('day');
   const [pending, setPending] = useState(false);
   const [minDate, setMinDate] = useState<Dayjs | undefined>();
 
   const hasCharts = !!Object.keys(data).length;
-  const readFile = !!networkNames.length;
+  // const readFile = !!networkData.length;
 
   const allowMinuteDetalization =
     detalization === 'hour'
@@ -224,9 +231,10 @@ export const Home = () => {
         const data = excelReader.read(fileData);
 
         dataParser.init(data);
-        const names = dataParser.getSheetNames();
+        const networkData: TNetworkData[] = dataParser.getNetworkData();
+
         setMinDate(dataParser.getMinDate());
-        setNetworkNames(names);
+        setNetworkData(networkData);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -286,6 +294,8 @@ export const Home = () => {
           dates as [Dayjs, Dayjs],
           det
         );
+
+        console.log(chartData);
         nextDataState[sheetName] = chartData;
       });
 
@@ -352,7 +362,7 @@ export const Home = () => {
               allowEmpty={[false, false]}
               value={range}
               onChange={handleDateRange}
-              disabled={!readFile}
+              // disabled={!readFile}
               maxDate={dayjs()}
               minDate={minDate}
             />
@@ -365,7 +375,7 @@ export const Home = () => {
             Режим накладання увімкнено
             <input
               type="checkbox"
-              disabled={!readFile}
+              // disabled={!readFile}
               onChange={() => setOverlapMode(!overlapMode)}
               checked={overlapMode}
               name={'overlapMode'}
@@ -378,7 +388,7 @@ export const Home = () => {
           <Select<Detelization>
             showSearch
             style={{ width: 400 }}
-            disabled={!readFile}
+            // disabled={!readFile}
             placeholder="Оберіть деталізацію"
             optionFilterProp="label"
             onChange={onChangeDetalization}
@@ -409,8 +419,70 @@ export const Home = () => {
           <button onClick={runExport}>Експортувати в PDF</button>
         ) : null}
 
+        <List
+          size="small"
+          style={{
+            width: '100%',
+          }}
+          dataSource={networkData}
+          renderItem={(item) => {
+            return (
+              <List.Item
+                style={{
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                }}>
+                <Card
+                  style={{
+                    width: '100%',
+                  }}>
+                  <Checkbox onChange={() => {}}>{item.name}</Checkbox>
+                </Card>
+                <Collapse
+                  size="small"
+                  style={{
+                    width: '100%',
+                  }}
+                  items={[
+                    {
+                      key: '1',
+                      label: 'Позивні:',
+                      children: (
+                        <Checkbox.Group
+                          options={[...new Set([...item.callsigns])]}
+                          value={[...new Set([...item.callsigns])]}
+                          onChange={() => {}}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+                <Collapse
+                  style={{
+                    width: '100%',
+                  }}
+                  size="small"
+                  items={[
+                    {
+                      key: '1',
+                      label: ' Частоти:',
+                      children: (
+                        <Checkbox.Group
+                          options={item.frequencies}
+                          value={item.frequencies}
+                          onChange={() => {}}
+                        />
+                      ),
+                    },
+                  ]}
+                />
+              </List.Item>
+            );
+          }}
+        />
+
         <div className="all_checkboxes_container">
-          {networkNames
+          {/* {networkData
             .filter(
               (sheetName) =>
                 !blackListCheckboxes.includes(sheetName.toLowerCase())
@@ -431,7 +503,7 @@ export const Home = () => {
                   {sheetName}
                 </label>
               </div>
-            ))}
+            ))} */}
         </div>
       </div>
 
