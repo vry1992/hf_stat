@@ -396,7 +396,7 @@ export const Home = () => {
                 value: 'minute',
                 label: `${
                   !allowMinuteDetalization && detalization !== 'minute'
-                    ? 'Зменшіть період до 2х днів для вибору "До хвилини"'
+                    ? 'Зменшіть період до 1 дня для вибору "До хвилини"'
                     : 'До хвилини'
                 }`,
                 disabled: !allowMinuteDetalization,

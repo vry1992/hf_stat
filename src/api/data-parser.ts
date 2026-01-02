@@ -96,16 +96,25 @@ class DataParser {
       const frequncyCellKey = `${config.dataBaseConfig.frequency}${i}`;
       let name = '';
       if (database[networkNameCellKey]) {
-        const value: string = database[networkNameCellKey].v;
-        name = value;
-        if (!names.includes(value)) {
-          names.push(value);
+        name = database[networkNameCellKey]?.v?.trim();
+        if (!name) {
+          console.warn(`Invalid network name in row ${i}`);
+          continue;
+        }
+        if (!names.includes(name)) {
+          names.push(name);
         }
       }
       if (name) {
         const prev = this.networkNameToFrequncyMap[name] || [];
-        const value: number = database[frequncyCellKey].v;
-        this.networkNameToFrequncyMap[name] = [...new Set([...prev, value])];
+        const frequency: number = database[frequncyCellKey]?.v;
+        if (!frequency) {
+          console.warn(`Invalid freqency in row ${i}`);
+          continue;
+        }
+        this.networkNameToFrequncyMap[name] = [
+          ...new Set([...prev, frequency]),
+        ];
       }
     }
 
