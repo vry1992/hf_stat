@@ -1,6 +1,6 @@
 import { addDays, addHours, addMinutes } from 'date-fns';
 import dayjs, { Dayjs } from 'dayjs';
-import { CellObject, SSF, WorkSheet, utils } from 'xlsx';
+import { CellObject, SSF, utils } from 'xlsx';
 import { FilePayload } from './types';
 
 const config = {
@@ -9,6 +9,8 @@ const config = {
   dataSheetConfig: {
     dateCollName: 'B',
     timeCollName: 'C',
+    whoCollName: 'D',
+    whomCollName: 'E',
     frequencyCollName: 'F',
     dataStartRow: 3,
   },
@@ -42,15 +44,35 @@ export type SheetAnalysisResultType = {
 
 export type Detelization = 'day' | 'hour' | 'minute';
 
+export type FrequencyData = {
+  date: Dayjs;
+  who?: string;
+  whom?: string;
+  frequency?: string;
+};
+
 class DataParser {
   private data: FilePayload | null = null;
   private diff: number = 0;
   private range: [Dayjs, Dayjs] | [] = [];
   private detalization: Detelization = 'day';
   private networkNameToFrequncyMap: Record<string, number[]> = {};
+  private groupedFrequenciesData: Record<string, FrequencyData[]> = {};
 
   init(content: FilePayload) {
-    this.data = content;
+    if (!this.data) {
+      this.data = content;
+    } else {
+      this.data = {
+        SheetNames: [...this.data.SheetNames, ...content.SheetNames],
+        Sheets: {
+          ...this.data.Sheets,
+          ...content.Sheets,
+        },
+      };
+    }
+
+    this.groupDataByFrequency();
   }
 
   get sheetNames() {
@@ -86,7 +108,7 @@ class DataParser {
     const database = this.data.Sheets[config.dataBaseSheet];
 
     const {
-      e: { r, c },
+      e: { r },
     } = utils.decode_range(database['!ref']!);
 
     const names: string[] = [];
@@ -121,28 +143,96 @@ class DataParser {
     return names;
   }
 
+  groupDataByFrequency() {
+    if (!this.data) {
+      console.error('No data found');
+      return;
+    }
+
+    const source = this.data.Sheets[config.dataSheet];
+    const {
+      e: { r },
+    } = utils.decode_range(source['!ref']!);
+
+    const maxRow = source['!rows']?.length || r;
+
+    const result: Record<string, FrequencyData[]> = {};
+
+    for (let i = 0; i <= maxRow; i++) {
+      const freqCellKey = `${config.dataSheetConfig.frequencyCollName}${i}`;
+      const freqValue: string | undefined = source[freqCellKey]?.v?.toString();
+      if (freqValue) {
+        const prev = result[freqValue] || [];
+
+        const dateCellKey = `${config.dataSheetConfig.dateCollName}${i}`;
+        const timeCellKey = `${config.dataSheetConfig.timeCollName}${i}`;
+        const date: CellObject | undefined = source[dateCellKey];
+        const time: CellObject | undefined = source[timeCellKey];
+
+        if (
+          typeof date?.v === 'number' &&
+          typeof time?.v === 'number' &&
+          +date.v >= 0 &&
+          +time.v >= 0
+        ) {
+          const dateData = this.convertExcelDateToJsDate(
+            date.v as number,
+            time.v as number
+          );
+
+          const whoCellKey = `${config.dataSheetConfig.whoCollName}${i}`;
+          const whomCellKey = `${config.dataSheetConfig.whomCollName}${i}`;
+          const freqCellKey = `${config.dataSheetConfig.frequencyCollName}${i}`;
+          const whoCell: CellObject | undefined = source[whoCellKey];
+          const whomCell: CellObject | undefined = source[whomCellKey];
+          const freqCell: CellObject | undefined = source[freqCellKey];
+
+          result[freqValue] = [
+            ...prev,
+            {
+              date: dateData,
+              who: whoCell?.v as string | undefined,
+              whom: whomCell?.v as string | undefined,
+              frequency: freqCell?.v as string | undefined,
+            },
+          ];
+        }
+      }
+    }
+
+    this.groupedFrequenciesData = result;
+  }
+
   analyzeSheet(
     networkName: string,
     range: [Dayjs, Dayjs],
     detalization: Detelization
   ): SheetAnalysisResultType {
-    if (!this.data)
+    if (!this.data) {
       return {
         data: [],
         fullName: '',
       };
+    }
 
-    const sheetData = this.data.Sheets[config.dataSheet];
+    this.detalization = detalization;
+    this.diff = range[1].diff(range[0], detalization);
+    this.range = range;
+
     const frequencies = this.networkNameToFrequncyMap[networkName];
+    const frequenciesData = frequencies.map(
+      (val) => this.groupedFrequenciesData[val.toString()] || []
+    );
+    const rawData = frequenciesData.flat();
+
+    const filtered: FrequencyData[] = this.filter({
+      raw: rawData,
+      range,
+    });
 
     const fullName = networkName;
 
-    const data = this.getDateTimeData(
-      sheetData,
-      range,
-      detalization,
-      frequencies
-    );
+    const data = this.groupForChart(filtered);
 
     return {
       data,
@@ -150,67 +240,38 @@ class DataParser {
     };
   }
 
-  getDateTimeData(
-    sheetData: WorkSheet,
-    range: [Dayjs, Dayjs],
-    detalization: Detelization,
-    frequencies: number[]
-  ): ChartItemType[] {
-    const maxRow = Number(
-      sheetData['!ref']?.split(':')[1].replace(new RegExp('[A-Z]*'), '')
-    );
-    const chartData: Dayjs[] = [];
-    this.diff = range[1].diff(range[0], detalization);
-    this.range = range;
-    this.detalization = detalization;
+  filter({ range, raw }: { range: [Dayjs, Dayjs]; raw: FrequencyData[] }) {
+    return raw.filter(({ date }) => {
+      console.log(
+        date.format('DD.MM.YYYY HH:mm'),
+        range[0].format('DD.MM.YYYY HH:mm'),
+        date.isAfter(range[0])
+      );
 
-    for (let i = config.dataSheetConfig.dataStartRow; i <= maxRow; i++) {
-      const freqCellKey = `${config.dataSheetConfig.frequencyCollName}${i}`;
-      const freq: CellObject | undefined = sheetData[freqCellKey];
-
-      if (!freq?.v || !frequencies.includes(freq?.v as number)) continue;
-
-      const dateCellKey = `${config.dataSheetConfig.dateCollName}${i}`;
-      const timeCellKey = `${config.dataSheetConfig.timeCollName}${i}`;
-      const date: CellObject | undefined = sheetData[dateCellKey];
-      const time: CellObject | undefined = sheetData[timeCellKey];
-
-      if (
-        typeof date?.v === 'number' &&
-        typeof time?.v === 'number' &&
-        +date.v >= 0 &&
-        +time.v >= 0
-      ) {
-        const dateData = this.convertExcelDateToJsDate(
-          date.v as number,
-          time.v as number
-        );
-
-        const matchRange = dateData > range[0] && dateData < range[1];
-
-        if (matchRange) {
-          chartData.push(dateData);
-        }
-      }
-    }
-
-    return this.groupForChart(chartData);
+      return (
+        date.valueOf() >= range[0].valueOf() &&
+        date.valueOf() <= range[1].valueOf()
+      );
+    });
   }
 
-  groupForChart(data: Dayjs[]): ChartItemType[] {
+  groupForChart(data: FrequencyData[]): ChartItemType[] {
     const payload = data.reduce((acc: ChartDataType, curr) => {
-      let dateKey: Dayjs = curr;
+      let dateKey: Dayjs = curr.date;
 
       if (this.detalization === 'day') {
-        dateKey = curr
+        dateKey = curr.date
           .set('hour', 0)
           .set('minute', 0)
           .set('second', 0)
           .set('millisecond', 0);
       } else if (this.detalization === 'hour') {
-        dateKey = curr.set('minute', 0).set('second', 0).set('millisecond', 0);
+        dateKey = curr.date
+          .set('minute', 0)
+          .set('second', 0)
+          .set('millisecond', 0);
       } else if (this.detalization === 'minute') {
-        dateKey = curr.set('second', 0).set('millisecond', 0);
+        dateKey = curr.date.set('second', 0).set('millisecond', 0);
       }
 
       const dateKeyStr = dateKey.format(
@@ -229,12 +290,14 @@ class DataParser {
       };
     }, {});
 
-    const empty = this.fillEmptyData(Object.keys(payload));
+    const empty = this.fillEmptyData();
 
-    return Object.values({ ...empty, ...payload });
+    return Object.values({ ...empty, ...payload }).sort(
+      (a, b) => dayjs(a.key).valueOf() - dayjs(b.key).valueOf()
+    );
   }
 
-  fillEmptyData(dataKeys: string[]) {
+  fillEmptyData() {
     const modifier =
       this.detalization === 'day'
         ? addDays
@@ -263,6 +326,53 @@ class DataParser {
 
     return res;
   }
+
+  // getDateTimeData(
+  //   sheetData: WorkSheet,
+  //   range: [Dayjs, Dayjs],
+  //   detalization: Detelization,
+  //   frequencies: number[]
+  // ): ChartItemType[] {
+  //   const maxRow = Number(
+  //     sheetData['!ref']?.split(':')[1].replace(new RegExp('[A-Z]*'), '')
+  //   );
+  //   const chartData: Dayjs[] = [];
+  //   this.diff = range[1].diff(range[0], detalization);
+  //   this.range = range;
+  //   this.detalization = detalization;
+
+  //   for (let i = config.dataSheetConfig.dataStartRow; i <= maxRow; i++) {
+  //     const freqCellKey = `${config.dataSheetConfig.frequencyCollName}${i}`;
+  //     const freq: CellObject | undefined = sheetData[freqCellKey];
+
+  //     if (!freq?.v || !frequencies.includes(freq?.v as number)) continue;
+
+  //     const dateCellKey = `${config.dataSheetConfig.dateCollName}${i}`;
+  //     const timeCellKey = `${config.dataSheetConfig.timeCollName}${i}`;
+  //     const date: CellObject | undefined = sheetData[dateCellKey];
+  //     const time: CellObject | undefined = sheetData[timeCellKey];
+
+  //     if (
+  //       typeof date?.v === 'number' &&
+  //       typeof time?.v === 'number' &&
+  //       +date.v >= 0 &&
+  //       +time.v >= 0
+  //     ) {
+  //       const dateData = this.convertExcelDateToJsDate(
+  //         date.v as number,
+  //         time.v as number
+  //       );
+
+  //       const matchRange = dateData > range[0] && dateData < range[1];
+
+  //       if (matchRange) {
+  //         chartData.push(dateData);
+  //       }
+  //     }
+  //   }
+
+  //   return this.groupForChart(chartData);
+  // }
 }
 
 export const dataParser = new DataParser();

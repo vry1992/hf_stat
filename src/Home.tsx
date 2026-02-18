@@ -1,10 +1,9 @@
 import { ConfigProvider, DatePicker, Select } from 'antd';
 import ukUA from 'antd/locale/uk_UA';
-import colorspace from 'colorspace';
 import { addDays } from 'date-fns';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/uk';
-import React, { ChangeEvent, FC, useCallback, useState } from 'react';
+import React, { ChangeEvent, useCallback, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -118,62 +117,11 @@ const defaultTo = dayjs(currentDate);
 
 const blackListCheckboxes = ['пошук', 'посилання'].map((n) => n.toLowerCase());
 
-const CustomTooltip: FC<{
-  active: boolean;
-  payload: { name: string; value: number; color: string }[];
-  label: string;
-}> = ({ active, payload, label }) => {
-  const isVisible = active && payload && payload.length;
-
-  if (!isVisible) return;
-
-  return (
-    <div
-      style={{
-        background: '#ffffff99',
-        padding: 10,
-        border: '1px solid #00000050',
-      }}>
-      <h4>{label}</h4>
-      {payload
-        .sort((a, b) => {
-          return b.value - a.value;
-        })
-        .map(({ name, value, color }) => {
-          return (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'left',
-                alignItems: 'center',
-                paddingRight: 10,
-              }}>
-              <div
-                style={{
-                  background: color,
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  paddingRight: 10,
-                  marginRight: 10,
-                }}></div>
-              <p key={name}>
-                <span>{name}:</span>{' '}
-                <span style={{ fontWeight: 'bold' }}>{value}</span>
-              </p>
-            </div>
-          );
-        })}
-    </div>
-  );
-};
-
 export const Home = () => {
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
   const [data, setData] = useState<{ [name: string]: SheetAnalysisResultType }>(
     {}
   );
-  const [overlapMode, setOverlapMode] = useState(false);
 
   const [networkNames, setNetworkNames] = useState<string[]>([]);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
@@ -218,6 +166,7 @@ export const Home = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+
     reader.onload = (evt) => {
       if (evt?.target?.result) {
         const fileData = new Uint8Array(evt.target.result as ArrayBuffer);
@@ -226,7 +175,9 @@ export const Home = () => {
         dataParser.init(data);
         const names = dataParser.getSheetNames();
         setMinDate(dataParser.getMinDate());
-        setNetworkNames(names);
+        setNetworkNames((prev) => {
+          return [...new Set([...prev, ...names])];
+        });
       }
     };
     reader.readAsArrayBuffer(file);
@@ -234,15 +185,15 @@ export const Home = () => {
 
   const handleSheetSelection = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
-      const sheetName = e.target.name;
-      if (data[sheetName]) {
+      const networkName = e.target.name;
+      if (data[networkName]) {
         const newData = { ...data };
-        delete newData[sheetName];
+        delete newData[networkName];
 
         setData(newData);
       } else {
         const chartData: SheetAnalysisResultType = dataParser.analyzeSheet(
-          sheetName,
+          networkName,
           range,
           detalization
         );
@@ -250,7 +201,7 @@ export const Home = () => {
         setData((prev) => {
           return {
             ...prev,
-            [sheetName]: chartData,
+            [networkName]: chartData,
           };
         });
       }
@@ -312,25 +263,6 @@ export const Home = () => {
     setData({ ...nextDataState });
   };
 
-  const combinedData = React.useMemo(() => {
-    if (!overlapMode || Object.keys(data).length === 0) return [];
-
-    const allKeys = Array.from(
-      new Set(
-        Object.values(data).flatMap((sheet) => sheet.data.map((d) => d.key))
-      )
-    );
-
-    return allKeys.map((key) => {
-      const row: Record<string, any> = { key };
-      for (const sheetData of Object.values(data)) {
-        const found = sheetData.data.find((d) => d.key === key);
-        row[sheetData.fullName] = found ? found.count : 0;
-      }
-      return row;
-    });
-  }, [data, overlapMode]);
-
   return (
     <div>
       {pending && <FullScreenSpinner />}
@@ -342,7 +274,6 @@ export const Home = () => {
           onChange={handleFile}
           accept=".xlsx, .xlsm"
         />
-        <br />
         <br />
         <div>
           <ConfigProvider locale={ukUA}>
@@ -357,20 +288,6 @@ export const Home = () => {
               minDate={minDate}
             />
           </ConfigProvider>
-        </div>
-        <br />
-
-        <div>
-          <label htmlFor={'overlapMode'}>
-            Режим накладання увімкнено
-            <input
-              type="checkbox"
-              disabled={!readFile}
-              onChange={() => setOverlapMode(!overlapMode)}
-              checked={overlapMode}
-              name={'overlapMode'}
-            />
-          </label>
         </div>
 
         <div>
@@ -410,11 +327,16 @@ export const Home = () => {
         ) : null}
 
         <div className="all_checkboxes_container">
+          <div className="select_sheet_checkbox__container">
+            <button onClick={() => setData({})}>Зняти всі</button>
+          </div>
           {networkNames
             .filter(
               (sheetName) =>
                 !blackListCheckboxes.includes(sheetName.toLowerCase())
             )
+            .sort((a, b) => a.localeCompare(b))
+
             .map((sheetName, idx) => (
               <div
                 key={`${idx}_${sheetName}`}
@@ -436,11 +358,10 @@ export const Home = () => {
       </div>
 
       {data &&
-        !overlapMode &&
         Object.values(data).map((dataItem, i) => {
           return (
             <div
-              key={i}
+              key={dataItem.fullName}
               style={{ width: '100vw', height: '400px', marginBottom: '40px' }}
               className={className}>
               <p style={{ textAlign: 'center', fontWeight: 'bold' }}>
@@ -493,48 +414,6 @@ export const Home = () => {
             </div>
           );
         })}
-
-      {data && overlapMode && (
-        <div style={{ width: '100vw', height: '400px', marginBottom: '40px' }}>
-          <p style={{ textAlign: 'center', fontWeight: 'bold' }}>Порівняння</p>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={combinedData}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              barSize={20}>
-              <XAxis
-                dataKey="key"
-                scale="point"
-                padding={{ left: 10, right: 10 }}
-                angle={-90}
-                textAnchor="end"
-                height={150}
-                tickMargin={1}
-                tick={(props) => (
-                  <CustomTick
-                    {...props}
-                    detalization={detalization}
-                    hoveredDay={hoveredDay}
-                    setHoveredDay={setHoveredDay}
-                  />
-                )}
-              />
-              <YAxis allowDecimals={false} />
-              {/* @ts-ignore */}
-              <Tooltip content={(props) => <CustomTooltip {...props} />} />
-              <CartesianGrid strokeDasharray="3 3" />
-              <Brush dataKey="key" height={30} stroke="#8884d8" />
-              {Object.values(data).map(({ fullName }) => (
-                <Bar
-                  key={fullName}
-                  dataKey={fullName}
-                  fill={colorspace(fullName)}
-                />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
     </div>
   );
 };
