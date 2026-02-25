@@ -89,9 +89,13 @@ p, h5 {
   background-color: #00ff0050;
   transition: all .2s ease;
 }
+.select_sheet_label {
+  border-bottom: 1px solid grey;
+}
 
 .select_sheet_label, .select_sheet_checkbox {
   cursor: pointer;
+  display: flex;
 }
 
 .select_sheet_checkbox {

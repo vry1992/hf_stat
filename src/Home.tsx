@@ -1,136 +1,63 @@
 import { ConfigProvider, DatePicker, Select } from 'antd';
 import ukUA from 'antd/locale/uk_UA';
+import CryptoJS from 'crypto-js';
 import { addDays } from 'date-fns';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/uk';
-import React, { ChangeEvent, useCallback, useState } from 'react';
-import {
-  Bar,
-  BarChart,
-  Brush,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import * as echarts from 'echarts';
+import React, { ChangeEvent, useCallback, useEffect, useState } from 'react';
 import { FullScreenSpinner } from './Spinner';
 import {
-  ChartItemType,
+  ChartData,
   Detelization,
-  SheetAnalysisResultType,
+  NetworkName,
   dataParser,
 } from './api/data-parser';
 import { excelReader } from './api/excel-reader';
 import { exportTablesToPdf } from './api/export-pdf';
+import { Chart } from './components/Chart';
+import { NetworkList } from './components/NetworkList';
 
-// *******************
-
-const daysShortUA = ['нд', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
-const dayColors: Record<string, string> = {
-  пн: '#cce5ff',
-  вт: '#d4edda',
-  ср: '#fff3cd',
-  чт: '#d1ecf1',
-  пт: '#e2ccff',
-  сб: '#ccd9ff',
-  нд: '#f8d7da',
-};
-
-type CustomTickProps = {
-  x?: number;
-  y?: number;
-  payload?: { value: string };
-  detalization: Detelization;
-};
-
-export const CustomTick: React.FC<
-  CustomTickProps & {
-    hoveredDay?: string | null;
-    setHoveredDay?: (day: string | null) => void;
-  }
-> = ({ x = 0, y = 0, payload, detalization, hoveredDay, setHoveredDay }) => {
-  const key = payload?.value ?? '';
-  const [datePart, time] = key.split(' ');
-  const [day, month, year] = datePart.split('.');
-  const date = dayjs(`${year}-${month}-${day}`);
-  const dayName = daysShortUA[date.day()];
-  const color = dayColors[dayName] || '#eee';
-
-  const isHovered = hoveredDay === dayName;
-
-  const dateText =
-    detalization === 'hour' || detalization === 'minute'
-      ? `${day}.${month} ${time ?? ''}`
-      : `${day}.${month}`;
-  const dayText = ` (${dayName})`;
-
-  return (
-    <g
-      transform={`translate(${x},${y})`}
-      onMouseEnter={() => detalization !== 'minute' && setHoveredDay?.(dayName)}
-      onMouseLeave={() => detalization !== 'minute' && setHoveredDay?.(null)}
-      style={{ cursor: 'pointer' }}>
-      <rect
-        x={-10}
-        y={-2}
-        width={20}
-        height={detalization === 'day' ? 63 : 100}
-        fill={isHovered ? '#ffd580' : color}
-        rx={3}
-        opacity={isHovered ? 1 : 0.5}
-      />
-
-      <text
-        transform="rotate(-90)"
-        x={-27}
-        y={5}
-        textAnchor="end"
-        fontSize={11}
-        fill={isHovered ? '#000' : '#333'}
-        fontWeight={isHovered ? 'bold' : 'normal'}>
-        {dateText}
-      </text>
-
-      <text
-        transform="rotate(-90)"
-        x={-3}
-        y={5}
-        textAnchor="end"
-        fontSize={10}
-        fill={isHovered ? '#000' : '#444'}
-        fontWeight={isHovered ? 'bold' : 'normal'}>
-        {dayText}
-      </text>
-    </g>
-  );
-};
-
-// *******************
+function hashArrayBuffer(arrayBuffer: ArrayBuffer) {
+  const wordArray = CryptoJS.lib.WordArray.create(arrayBuffer as any);
+  return CryptoJS.SHA256(wordArray).toString(CryptoJS.enc.Hex);
+}
 
 const { RangePicker } = DatePicker;
 const className = 'export-class';
 
 const currentDate = new Date();
-const defaultFrom = dayjs(addDays(currentDate, -3));
+const defaultFrom = dayjs(addDays(currentDate, -30))
+  .hour(0)
+  .minute(0)
+  .second(0)
+  .millisecond(0);
 const defaultTo = dayjs(currentDate);
 
-const blackListCheckboxes = ['пошук', 'посилання'].map((n) => n.toLowerCase());
+export const GROUP_ID = 'frequency-sync-group';
 
 export const Home = () => {
-  const [hoveredDay, setHoveredDay] = useState<string | null>(null);
-  const [data, setData] = useState<{ [name: string]: SheetAnalysisResultType }>(
-    {}
-  );
-
-  const [networkNames, setNetworkNames] = useState<string[]>([]);
+  const [networkNames, setNetworkNames] = useState<NetworkName[]>([]);
   const [range, setRange] = useState<[Dayjs, Dayjs]>([defaultFrom, defaultTo]);
-  const [detalization, setDetalization] = useState<Detelization>('day');
+  const [detalization, setDetalization] = useState<Detelization>('hour');
+  const [maxY, setMaxY] = useState<number>(0);
   const [pending, setPending] = useState(false);
   const [minDate, setMinDate] = useState<Dayjs | undefined>();
 
-  const hasCharts = !!Object.keys(data).length;
-  const readFile = !!networkNames.length;
+  const [charts, setCharts] = useState<
+    {
+      chartData: ChartData;
+      networkId: string;
+      name: string;
+      maxY: number;
+    }[]
+  >([]);
+
+  useEffect(() => {
+    if (charts.length > 0) {
+      echarts.connect(GROUP_ID);
+    }
+  }, [charts]);
 
   const allowMinuteDetalization =
     detalization === 'hour'
@@ -138,14 +65,6 @@ export const Home = () => {
       : detalization === 'day'
       ? range[1].diff(range[0], 'day') <= 1
       : false;
-
-  const counts = Object.values(data)
-    .reduce<ChartItemType[]>((acc, curr) => {
-      return [...acc, ...curr.data];
-    }, [])
-    .map(({ count }) => count);
-
-  const globalMax = Math.max(...counts);
 
   const runExport = async () => {
     try {
@@ -169,44 +88,55 @@ export const Home = () => {
 
     reader.onload = (evt) => {
       if (evt?.target?.result) {
+        const buffer = evt.target.result as ArrayBuffer;
+
+        const hash = hashArrayBuffer(buffer);
+        const fileName = file.name;
+
         const fileData = new Uint8Array(evt.target.result as ArrayBuffer);
         const data = excelReader.read(fileData);
 
-        dataParser.init(data);
-        const names = dataParser.getSheetNames();
-        setMinDate(dataParser.getMinDate());
-        setNetworkNames((prev) => {
-          return [...new Set([...prev, ...names])];
+        dataParser.init(data, {
+          fileName,
+          hash,
         });
+
+        onFilter({ range }, detalization);
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
+  const getNetworkData = useCallback(
+    (networkId: string) => {
+      dataParser.setDetalization = detalization;
+      const networkData = dataParser.getNetworkData(networkId);
+
+      if (networkData) {
+        setCharts((prev) => {
+          return [...prev, { ...networkData }];
+        });
+        if (maxY < networkData.maxY) {
+          setMaxY(networkData.maxY);
+        }
+      }
+    },
+    [detalization]
+  );
+
   const handleSheetSelection = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => {
-      const networkName = e.target.name;
-      if (data[networkName]) {
-        const newData = { ...data };
-        delete newData[networkName];
-
-        setData(newData);
+      const checked = e.target.checked;
+      const networkId = e.target.id;
+      if (checked) {
+        getNetworkData(networkId);
       } else {
-        const chartData: SheetAnalysisResultType = dataParser.analyzeSheet(
-          networkName,
-          range,
-          detalization
-        );
-
-        setData((prev) => {
-          return {
-            ...prev,
-            [networkName]: chartData,
-          };
+        setCharts((prev) => {
+          return [...prev.filter((chart) => chart.networkId !== networkId)];
         });
       }
     },
-    [data, range, detalization]
+    [getNetworkData]
   );
 
   const handleDateRange: Parameters<typeof RangePicker>[0]['onChange'] = (
@@ -226,42 +156,52 @@ export const Home = () => {
       }
 
       setRange(dates as [Dayjs, Dayjs]);
-
-      const selectedSheets = Object.keys(data);
-
-      const nextDataState = {};
-
-      selectedSheets.forEach((sheetName) => {
-        const chartData: SheetAnalysisResultType = dataParser.analyzeSheet(
-          sheetName,
-          dates as [Dayjs, Dayjs],
-          det
-        );
-        nextDataState[sheetName] = chartData;
-      });
-
-      setData({ ...nextDataState });
     }
   };
 
   const onChangeDetalization = (value: Detelization) => {
     setDetalization(value);
+    dataParser.setDetalization = value;
+  };
 
-    const nextDataState = {};
+  const bulkUpdateCharts = () => {
+    const currentNetworkIds = charts.map(({ networkId }) => networkId);
+    const newCharts: {
+      chartData: ChartData;
+      networkId: string;
+      name: string;
+      maxY: number;
+    }[] = [];
 
-    const selectedSheets = Object.keys(data);
-
-    selectedSheets.forEach((sheetName) => {
-      const chartData: SheetAnalysisResultType = dataParser.analyzeSheet(
-        sheetName,
-        range,
-        value
-      );
-      nextDataState[sheetName] = chartData;
+    let newMaxY = 0;
+    dataParser.setDetalization = detalization;
+    currentNetworkIds.forEach((networkId) => {
+      const networkData = dataParser.getNetworkData(networkId);
+      if (!networkData) return;
+      if (newMaxY < networkData.maxY) {
+        newMaxY = networkData.maxY;
+      }
+      newCharts.push(networkData);
     });
 
-    setData({ ...nextDataState });
+    setCharts(newCharts);
+    setMaxY(newMaxY);
   };
+
+  const onFilter = useCallback(
+    (filters: { range: [Dayjs, Dayjs] }, detalization: Detelization) => {
+      dataParser.onFilter({ range: filters.range }, detalization);
+      const netNames = dataParser.getNetworkNames();
+      setNetworkNames(netNames);
+      bulkUpdateCharts();
+    },
+    [range, detalization]
+  );
+
+  useEffect(() => {
+    if (!networkNames.length) return;
+    onFilter({ range }, detalization);
+  }, [onFilter]);
 
   return (
     <div>
@@ -283,7 +223,7 @@ export const Home = () => {
               allowEmpty={[false, false]}
               value={range}
               onChange={handleDateRange}
-              disabled={!readFile}
+              disabled={!networkNames.length}
               maxDate={dayjs()}
               minDate={minDate}
             />
@@ -295,7 +235,7 @@ export const Home = () => {
           <Select<Detelization>
             showSearch
             style={{ width: 400 }}
-            disabled={!readFile}
+            disabled={!networkNames.length}
             placeholder="Оберіть деталізацію"
             optionFilterProp="label"
             onChange={onChangeDetalization}
@@ -322,98 +262,27 @@ export const Home = () => {
           />
         </div>
 
-        {hasCharts ? (
+        {charts.length ? (
           <button onClick={runExport}>Експортувати в PDF</button>
         ) : null}
 
-        <div className="all_checkboxes_container">
-          <div className="select_sheet_checkbox__container">
-            <button onClick={() => setData({})}>Зняти всі</button>
-          </div>
-          {networkNames
-            .filter(
-              (sheetName) =>
-                !blackListCheckboxes.includes(sheetName.toLowerCase())
-            )
-            .sort((a, b) => a.localeCompare(b))
-
-            .map((sheetName, idx) => (
-              <div
-                key={`${idx}_${sheetName}`}
-                className="select_sheet_checkbox__container">
-                <label htmlFor={sheetName} className="select_sheet_label">
-                  <input
-                    className="select_sheet_checkbox"
-                    id={sheetName}
-                    type="checkbox"
-                    onChange={handleSheetSelection}
-                    checked={!!data[sheetName]}
-                    name={sheetName}
-                  />
-                  {sheetName}
-                </label>
-              </div>
-            ))}
-        </div>
+        <NetworkList
+          onUncheckAll={() => {}}
+          onSelect={handleSheetSelection}
+          data={networkNames}
+        />
       </div>
-
-      {data &&
-        Object.values(data).map((dataItem, i) => {
-          return (
-            <div
-              key={dataItem.fullName}
-              style={{ width: '100vw', height: '400px', marginBottom: '40px' }}
-              className={className}>
-              <p style={{ textAlign: 'center', fontWeight: 'bold' }}>
-                {dataItem.fullName}
-              </p>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={dataItem.data}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  syncId="anyId"
-                  barSize={20}>
-                  <XAxis
-                    dataKey="key"
-                    scale="point"
-                    padding={{ left: 10, right: 10 }}
-                    angle={-90}
-                    textAnchor="end"
-                    height={110}
-                    tickMargin={1}
-                    allowDecimals={false}
-                    tick={(props) => (
-                      <CustomTick
-                        {...props}
-                        detalization={detalization}
-                        hoveredDay={hoveredDay}
-                        setHoveredDay={setHoveredDay}
-                      />
-                    )}
-                    interval="preserveStartEnd"
-                  />
-                  <CartesianGrid stroke="#ccc" strokeDasharray="5 5" />
-                  <YAxis domain={[0, globalMax]} allowDecimals={false} />
-                  <Tooltip />
-                  {i === 0 ? (
-                    <Brush
-                      dataKey="key"
-                      height={30}
-                      stroke="#8884d8"
-                      gap={10}
-                    />
-                  ) : null}
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <Bar
-                    dataKey="count"
-                    fill="#8884d8"
-                    background={{ fill: '#eee' }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          );
-        })}
+      {charts.map((props) => {
+        return (
+          <Chart
+            key={props.networkId}
+            data={props.chartData}
+            detalization={detalization}
+            maxY={props.maxY}
+            name={props.name}
+          />
+        );
+      })}
     </div>
   );
 };
