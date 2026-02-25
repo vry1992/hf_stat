@@ -93,8 +93,6 @@ export const Chart: FC<{
             const day = parsed.locale('uk').format('dd');
             const formatted = parsed.format(FORMAT);
 
-            console.log(day, hoveredDay);
-
             if (day === hoveredDay) {
               return `{highlight|${formatted} ${day}}`;
             }

@@ -274,13 +274,14 @@ export const Home = () => {
       </div>
       {charts.map((props) => {
         return (
-          <Chart
-            key={props.networkId}
-            data={props.chartData}
-            detalization={detalization}
-            maxY={props.maxY}
-            name={props.name}
-          />
+          <div className={className} key={props.networkId}>
+            <Chart
+              data={props.chartData}
+              detalization={detalization}
+              maxY={props.maxY}
+              name={props.name}
+            />
+          </div>
         );
       })}
     </div>
