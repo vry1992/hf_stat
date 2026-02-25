@@ -31,6 +31,8 @@ export const config = {
   },
 };
 
+const EMPTY_CS = 'н/в';
+
 import CryptoJS from 'crypto-js';
 import { addDays, addHours, addMinutes } from 'date-fns';
 
@@ -168,8 +170,8 @@ class DataParser {
               ...prev,
               {
                 date: dateData,
-                who: whoCell?.v as string | undefined,
-                whom: whomCell?.v as string | undefined,
+                who: (whoCell?.v as string) || EMPTY_CS,
+                whom: (whomCell?.v as string) || EMPTY_CS,
                 frequency: freqValue,
               },
             ];
@@ -200,6 +202,16 @@ class DataParser {
 
   private setFilterData(filters: {
     range: [Dayjs, Dayjs];
+    specFilters: Record<
+      string,
+      {
+        frequencies: (number | undefined)[];
+        callsigns: {
+          who: Array<string | undefined>;
+          whom: Array<string | undefined>;
+        };
+      }
+    >;
   }): (NetworkData & { frequencyData: FrequencyData[] })[] {
     const entries: {
       sourceFileHash: string;
@@ -214,6 +226,7 @@ class DataParser {
             return this.filter({
               raw: this.groupedFrequenciesData[fr] || [],
               range: filters.range,
+              specFilters: filters.specFilters[curr.idHash],
             });
           })
           .flat();
@@ -225,7 +238,19 @@ class DataParser {
   }
 
   public onFilter(
-    filters: { range: [Dayjs, Dayjs] },
+    filters: {
+      range: [Dayjs, Dayjs];
+      specFilters: Record<
+        string,
+        {
+          frequencies: (number | undefined)[];
+          callsigns: {
+            who: Array<string | undefined>;
+            whom: Array<string | undefined>;
+          };
+        }
+      >;
+    },
     detalization: Detelization
   ) {
     this.result = this.setFilterData(filters);
@@ -270,6 +295,11 @@ class DataParser {
         networkId: string;
         name: string;
         maxY: number;
+        frequencies: number[];
+        callsigns: {
+          who: Array<string | undefined>;
+          whom: Array<string | undefined>;
+        };
       } {
     const networkData = this.result.find(({ idHash }) => idHash === networkId);
 
@@ -309,21 +339,100 @@ class DataParser {
       ...Object.values(chartData).map(({ count }) => count)
     );
 
+    const cs: {
+      who: Array<string | undefined>;
+      whom: Array<string | undefined>;
+    } = networkData.frequencies.reduce(
+      (
+        acc: {
+          who: Array<string | undefined>;
+          whom: Array<string | undefined>;
+        },
+        curr
+      ) => {
+        const frData = this.groupedFrequenciesData[curr];
+        if (!frData) return acc;
+
+        const callsigns: {
+          who: Array<string | undefined>;
+          whom: Array<string | undefined>;
+        } = frData.reduce(
+          (
+            acc: {
+              who: Array<string | undefined>;
+              whom: Array<string | undefined>;
+            },
+            curr
+          ) => {
+            const who = curr.who?.toString()?.trim();
+            const whom = curr.whom?.toString()?.trim();
+
+            if (!acc.who.includes(who)) acc.who.push(who);
+            if (!acc.whom.includes(whom)) acc.whom.push(whom);
+
+            return acc;
+          },
+          { who: [], whom: [] }
+        );
+
+        return {
+          who: [...new Set([...acc.who, ...callsigns.who])],
+          whom: [...new Set([...acc.whom, ...callsigns.whom])],
+        };
+      },
+      { who: [], whom: [] }
+    );
+
     return {
       chartData,
       networkId,
       maxY,
       name: networkData.originalName,
+      frequencies: this.networkNameToFrequncyMap[networkId].frequencies,
+      callsigns: cs,
     };
   }
 
-  filter({ range, raw }: { range: [Dayjs, Dayjs]; raw: FrequencyData[] }) {
-    return raw.filter(({ date }) => {
-      return (
+  filter({
+    range,
+    raw,
+    specFilters,
+  }: {
+    range: [Dayjs, Dayjs];
+    raw: FrequencyData[];
+    specFilters: {
+      frequencies: (number | undefined)[];
+      callsigns: {
+        who: Array<string | undefined>;
+        whom: Array<string | undefined>;
+      };
+    };
+  }) {
+    const stage1 = raw.filter(({ date }) => {
+      const inRange =
         date.valueOf() >= range[0].valueOf() &&
-        date.valueOf() <= range[1].valueOf()
-      );
+        date.valueOf() <= range[1].valueOf();
+
+      return inRange;
     });
+
+    const specCallsignsWho = specFilters?.callsigns?.who || [];
+    const specCallsignsWhom = specFilters?.callsigns?.whom || [];
+    const specFreqs = specFilters?.frequencies || [];
+
+    const stage2 = specCallsignsWho?.length
+      ? stage1.filter(({ who }) => specCallsignsWho.includes(who))
+      : stage1;
+
+    const stage3 = specCallsignsWhom?.length
+      ? stage2.filter(({ whom }) => specCallsignsWhom.includes(whom))
+      : stage2;
+
+    const stage4 = specFreqs?.length
+      ? stage3.filter(({ frequency }) => specFreqs.includes(frequency))
+      : stage3;
+
+    return stage4;
   }
 
   getPlaceholders({

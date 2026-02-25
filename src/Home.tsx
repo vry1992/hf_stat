@@ -1,4 +1,4 @@
-import { ConfigProvider, DatePicker, Select } from 'antd';
+import { ConfigProvider, DatePicker, Form, Select } from 'antd';
 import ukUA from 'antd/locale/uk_UA';
 import CryptoJS from 'crypto-js';
 import { addDays } from 'date-fns';
@@ -27,7 +27,7 @@ const { RangePicker } = DatePicker;
 const className = 'export-class';
 
 const currentDate = new Date();
-const defaultFrom = dayjs(addDays(currentDate, -30))
+const defaultFrom = dayjs(addDays(currentDate, -5))
   .hour(0)
   .minute(0)
   .second(0)
@@ -43,6 +43,18 @@ export const Home = () => {
   const [maxY, setMaxY] = useState<number>(0);
   const [pending, setPending] = useState(false);
   const [minDate, setMinDate] = useState<Dayjs | undefined>();
+  const [specFilters, setSpecFilters] = useState<
+    Record<
+      string,
+      {
+        frequencies: (number | undefined)[];
+        callsigns: {
+          who: Array<string | undefined>;
+          whom: Array<string | undefined>;
+        };
+      }
+    >
+  >({});
 
   const [charts, setCharts] = useState<
     {
@@ -50,6 +62,11 @@ export const Home = () => {
       networkId: string;
       name: string;
       maxY: number;
+      frequencies: number[];
+      callsigns: {
+        who: Array<string | undefined>;
+        whom: Array<string | undefined>;
+      };
     }[]
   >([]);
 
@@ -101,7 +118,7 @@ export const Home = () => {
           hash,
         });
 
-        onFilter({ range }, detalization);
+        onFilter();
       }
     };
     reader.readAsArrayBuffer(file);
@@ -111,6 +128,8 @@ export const Home = () => {
     (networkId: string) => {
       dataParser.setDetalization = detalization;
       const networkData = dataParser.getNetworkData(networkId);
+
+      console.log(networkData);
 
       if (networkData) {
         setCharts((prev) => {
@@ -171,6 +190,11 @@ export const Home = () => {
       networkId: string;
       name: string;
       maxY: number;
+      frequencies: number[];
+      callsigns: {
+        who: Array<string | undefined>;
+        whom: Array<string | undefined>;
+      };
     }[] = [];
 
     let newMaxY = 0;
@@ -188,20 +212,68 @@ export const Home = () => {
     setMaxY(newMaxY);
   };
 
-  const onFilter = useCallback(
-    (filters: { range: [Dayjs, Dayjs] }, detalization: Detelization) => {
-      dataParser.onFilter({ range: filters.range }, detalization);
-      const netNames = dataParser.getNetworkNames();
-      setNetworkNames(netNames);
-      bulkUpdateCharts();
-    },
-    [range, detalization]
-  );
+  const onFilter = useCallback(() => {
+    dataParser.onFilter({ range, specFilters }, detalization);
+    const netNames = dataParser.getNetworkNames();
+    setNetworkNames(netNames);
+    bulkUpdateCharts();
+  }, [range, detalization, specFilters]);
 
   useEffect(() => {
     if (!networkNames.length) return;
-    onFilter({ range }, detalization);
+    onFilter();
   }, [onFilter]);
+
+  const onChangeFreqFilter = useCallback(
+    (newFrequencies: (number | undefined)[], networkId: string) => {
+      setSpecFilters((prev) => {
+        const prevForThisNetwork = prev[networkId]
+          ? prev[networkId]
+          : { frequencies: [], callsigns: { who: [], whom: [] } };
+        return {
+          ...prev,
+          [networkId]: {
+            frequencies: newFrequencies,
+            callsigns: prevForThisNetwork.callsigns,
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const onChangeCallsignFilter = useCallback(
+    (
+      newCallsigns: (string | undefined)[],
+      networkId: string,
+      dirrection: string
+    ) => {
+      const init = charts.find((chart) => chart.networkId === networkId);
+
+      setSpecFilters((prev) => {
+        const prevForThisNetwork = prev[networkId]
+          ? prev[networkId]
+          : {
+              frequencies: init?.frequencies || [],
+              callsigns: {
+                who: init?.callsigns?.who || [],
+                whom: init?.callsigns?.whom || [],
+              },
+            };
+        return {
+          ...prev,
+          [networkId]: {
+            frequencies: prevForThisNetwork.frequencies,
+            callsigns: {
+              ...prevForThisNetwork.callsigns,
+              [dirrection]: newCallsigns,
+            },
+          },
+        };
+      });
+    },
+    []
+  );
 
   return (
     <div>
@@ -275,6 +347,67 @@ export const Home = () => {
       {charts.map((props) => {
         return (
           <div className={className} key={props.networkId}>
+            {props.networkId}
+            <Form.Item
+              label="Позивні (Хто)"
+              style={{
+                paddingLeft: 20,
+              }}>
+              <Select
+                mode="multiple"
+                placeholder="Please select"
+                defaultValue={props.callsigns.who}
+                onChange={(newCallsigns) => {
+                  onChangeCallsignFilter(newCallsigns, props.networkId, 'who');
+                }}
+                style={{ width: '90%' }}
+                options={props.callsigns.who.map((cs) => ({
+                  title: cs,
+                  value: cs,
+                }))}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Позивні (Кого)"
+              style={{
+                paddingLeft: 20,
+              }}>
+              <Select
+                mode="multiple"
+                placeholder="Please select"
+                defaultValue={props.callsigns.whom}
+                onChange={(newCallsigns) => {
+                  onChangeCallsignFilter(newCallsigns, props.networkId, 'whom');
+                }}
+                style={{ width: '90%' }}
+                options={props.callsigns.whom.map((cs) => ({
+                  title: cs,
+                  value: cs,
+                }))}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Частоти"
+              style={{
+                paddingLeft: 20,
+              }}>
+              <Select
+                mode="multiple"
+                placeholder="Please select"
+                defaultValue={props.frequencies}
+                onChange={(newFrequencies) => {
+                  onChangeFreqFilter(newFrequencies, props.networkId);
+                }}
+                style={{ width: '90%' }}
+                options={props.frequencies.map((cs) => ({
+                  title: cs.toString(),
+                  value: cs,
+                }))}
+              />
+            </Form.Item>
+
             <Chart
               data={props.chartData}
               detalization={detalization}
