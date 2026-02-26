@@ -102,29 +102,35 @@ export const Home = () => {
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPending(true);
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
 
     reader.onload = (evt) => {
-      if (evt?.target?.result) {
-        const buffer = evt.target.result as ArrayBuffer;
+      try {
+        if (evt?.target?.result) {
+          const buffer = evt.target.result as ArrayBuffer;
 
-        const hash = hashArrayBuffer(buffer);
-        const fileName = file.name;
+          const hash = hashArrayBuffer(buffer);
+          const fileName = file.name;
 
-        const fileData = new Uint8Array(evt.target.result as ArrayBuffer);
-        const data = excelReader.read(fileData);
+          const fileData = new Uint8Array(evt.target.result as ArrayBuffer);
+          const data = excelReader.read(fileData);
 
-        dataParser.init(data, {
-          fileName,
-          hash,
-        });
+          dataParser.init(data, {
+            fileName,
+            hash,
+          });
 
-        onMainFilter();
+          onMainFilter();
+        }
+      } catch (error) {
+      } finally {
       }
     };
     reader.readAsArrayBuffer(file);
+    setPending(false);
   };
 
   const getNetworkData = useCallback((networkId: string) => {

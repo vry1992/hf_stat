@@ -199,8 +199,8 @@ class DataParser {
               ...prev,
               {
                 date: dateData,
-                who: (whoCell?.v as string) || EMPTY_CALLSIGN,
-                whom: (whomCell?.v as string) || EMPTY_CALLSIGN,
+                who: (whoCell?.v || EMPTY_CALLSIGN).toString().trim(),
+                whom: (whomCell?.v || EMPTY_CALLSIGN).toString().trim(),
                 frequency: freqValue,
               },
             ];
@@ -284,8 +284,8 @@ class DataParser {
       whom: Record<string, number>;
     } = filtered.reduce(
       (acc, curr) => {
-        const who = (curr.who || EMPTY_CALLSIGN).trim();
-        const whom = (curr.whom || EMPTY_CALLSIGN).trim();
+        const who = curr.who || EMPTY_CALLSIGN;
+        const whom = curr.whom || EMPTY_CALLSIGN;
         const prevWho = acc.who[who] || 0;
         const prevWhom = acc.whom[whom] || 0;
 
@@ -360,11 +360,11 @@ class DataParser {
     const specFreqs = specFilters?.frequencies || [];
 
     const stage1 = specCallsignsWho?.length
-      ? raw.filter(({ who }) => specCallsignsWho.includes(who.trim()))
+      ? raw.filter(({ who }) => specCallsignsWho.includes(who))
       : raw;
 
     const stage2 = specCallsignsWhom?.length
-      ? stage1.filter(({ whom }) => specCallsignsWhom.includes(whom.trim()))
+      ? stage1.filter(({ whom }) => specCallsignsWhom.includes(whom))
       : stage1;
 
     const stage3 = specFreqs?.length

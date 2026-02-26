@@ -88,7 +88,15 @@ export const ChartSection: FC<{
         closable={closable}
         onClose={handleClose}
         style={{ marginInlineEnd: 4 }}>
-        {label} ({count})
+        {count > 0 ? (
+          <b>
+            {label} ({count})
+          </b>
+        ) : (
+          <span>
+            {label} ({count})
+          </span>
+        )}
       </Tag>
     );
   };
@@ -117,7 +125,15 @@ export const ChartSection: FC<{
         closable={closable}
         onClose={handleClose}
         style={{ marginInlineEnd: 4 }}>
-        {label} ({count})
+        {count > 0 ? (
+          <b>
+            {label} ({count})
+          </b>
+        ) : (
+          <span>
+            {label} ({count})
+          </span>
+        )}
       </Tag>
     );
   };
@@ -146,7 +162,15 @@ export const ChartSection: FC<{
         closable={closable}
         onClose={handleClose}
         style={{ marginInlineEnd: 4 }}>
-        {label} ({count})
+        {count > 0 ? (
+          <b>
+            {label} ({count})
+          </b>
+        ) : (
+          <span>
+            {label} ({count})
+          </span>
+        )}
       </Tag>
     );
   };
@@ -158,6 +182,7 @@ export const ChartSection: FC<{
   }> = ({ list, key, onClose }) => {
     return (
       <div
+        key={Math.random()}
         style={{
           paddingLeft: 20,
           paddingBottom: 10,
@@ -166,7 +191,7 @@ export const ChartSection: FC<{
           return (
             <Tag
               color="red"
-              key={`${key}_${tag}`}
+              key={Math.random()}
               closable
               onClose={() => onClose(tag)}>
               {tag}
