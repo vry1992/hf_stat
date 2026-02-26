@@ -107,6 +107,10 @@ export const Home = () => {
     if (!file) return;
     const reader = new FileReader();
 
+    reader.onerror = () => {
+      alert(`Помилка зчитування файлу ${file.name}`);
+    };
+
     reader.onload = (evt) => {
       try {
         if (evt?.target?.result) {
