@@ -31,7 +31,7 @@ export const config = {
   },
 };
 
-const EMPTY_CS = 'н/в';
+const EMPTY_CALLSIGN = 'н/в';
 
 import CryptoJS from 'crypto-js';
 import { addDays, addHours, addMinutes } from 'date-fns';
@@ -46,9 +46,9 @@ export type Detelization = 'day' | 'hour' | 'minute';
 
 export type FrequencyData = {
   date: Dayjs;
-  who?: string;
-  whom?: string;
-  frequency?: number;
+  who: string;
+  whom: string;
+  frequency: number;
 };
 
 export type NetworkData = {
@@ -68,14 +68,16 @@ export type ChartDataItem = { key: string; count: number };
 
 export type ChartData = Placeholders;
 
+type MainFilterProps = { range: [Dayjs, Dayjs] };
+
 class DataParser {
   private Sheets: Record<string, { [sheet: string]: WorkSheet }> = {};
-  private networkNameToFrequncyMap: Record<string, NetworkData> = {};
-  private groupedFrequenciesData: Record<string, FrequencyData[]> = {};
+  private mapNetworkIdToNetworkInfo: Record<string, NetworkData> = {};
+  private mapFrequencyToData: Record<string, FrequencyData[]> = {};
   private fileNameToIdMap: Record<string, string> = ({} = {});
-  private result: (NetworkData & { frequencyData: FrequencyData[] })[] = [];
-  private minDate: Dayjs;
   public detalization: Detelization = 'day';
+
+  private mainStore: Record<string, FrequencyData[]> = {};
 
   public placeholders: Placeholders = {};
 
@@ -89,6 +91,33 @@ class DataParser {
 
   set setDetalization(detalization: Detelization) {
     this.detalization = detalization;
+  }
+
+  private mainFilter(mainFilter: MainFilterProps, data: FrequencyData[]) {
+    return data.filter(({ date }) => {
+      const inRange =
+        date.valueOf() >= mainFilter.range[0].valueOf() &&
+        date.valueOf() <= mainFilter.range[1].valueOf();
+
+      return inRange;
+    });
+  }
+
+  public onMainFilterChange(
+    mainFilter: MainFilterProps,
+    detalization: Detelization
+  ) {
+    const entries = Object.entries(this.mapFrequencyToData);
+    const localMainStore = entries.map(([frequency, data]) => {
+      const filtered = this.mainFilter(mainFilter, data);
+      return [frequency, filtered];
+    });
+
+    this.mainStore = Object.fromEntries(localMainStore);
+    this.placeholders = this.getPlaceholders({
+      range: mainFilter.range,
+      detalization,
+    });
   }
 
   private mergeFrequenciesOfDifferentFiles() {
@@ -111,7 +140,7 @@ class DataParser {
           continue;
         }
         const hashName = hashString(originalName);
-        const networkData = this.networkNameToFrequncyMap[hashName] || {
+        const networkData = this.mapNetworkIdToNetworkInfo[hashName] || {
           originalName,
           idHash: hashName,
           sourceFileHash: hash,
@@ -121,7 +150,7 @@ class DataParser {
         const frequency: number = frequenciesDatabaseSheet[frequncyCellKey]?.v;
         if (!networkData.frequencies.includes(frequency)) {
           networkData.frequencies = [...networkData.frequencies, frequency];
-          this.networkNameToFrequncyMap[hashName] = networkData;
+          this.mapNetworkIdToNetworkInfo[hashName] = networkData;
         }
       }
     }
@@ -130,7 +159,7 @@ class DataParser {
   private groupDataByFrequency() {
     const hashes = Object.keys(this.fileNameToIdMap);
     const len = hashes.length;
-    this.groupedFrequenciesData = {};
+    this.mapFrequencyToData = {};
     for (let i = 0; i < len; i++) {
       const hash = hashes[i];
       const mainContent = this.Sheets[hash][config.dataSheet];
@@ -143,7 +172,7 @@ class DataParser {
         const freqValue: number | undefined = +mainContent[frequncyCellKey]?.v;
 
         if (freqValue && !isNaN(freqValue)) {
-          const prev = this.groupedFrequenciesData[freqValue] || [];
+          const prev = this.mapFrequencyToData[freqValue] || [];
 
           const dateCellKey = `${config.dataSheetConfig.dateCollName}${k}`;
           const timeCellKey = `${config.dataSheetConfig.timeCollName}${k}`;
@@ -166,12 +195,12 @@ class DataParser {
             const whoCell: CellObject | undefined = mainContent[whoCellKey];
             const whomCell: CellObject | undefined = mainContent[whomCellKey];
 
-            this.groupedFrequenciesData[freqValue] = [
+            this.mapFrequencyToData[freqValue] = [
               ...prev,
               {
                 date: dateData,
-                who: (whoCell?.v as string) || EMPTY_CS,
-                whom: (whomCell?.v as string) || EMPTY_CS,
+                who: (whoCell?.v as string) || EMPTY_CALLSIGN,
+                whom: (whomCell?.v as string) || EMPTY_CALLSIGN,
                 frequency: freqValue,
               },
             ];
@@ -200,115 +229,84 @@ class DataParser {
     this.groupDataByFrequency();
   }
 
-  private setFilterData(filters: {
-    range: [Dayjs, Dayjs];
-    specFilters: Record<
-      string,
-      {
-        frequencies: (number | undefined)[];
-        callsigns: {
-          who: Array<string | undefined>;
-          whom: Array<string | undefined>;
-        };
-      }
-    >;
-  }): (NetworkData & { frequencyData: FrequencyData[] })[] {
-    const entries: {
-      sourceFileHash: string;
-      originalName: string;
-      frequencies: number[];
-      idHash: string;
-    }[] = Object.values(this.networkNameToFrequncyMap);
-    return entries.reduce<(NetworkData & { frequencyData: FrequencyData[] })[]>(
-      (acc, curr) => {
-        const frequencyData = curr.frequencies
-          .map((fr) => {
-            return this.filter({
-              raw: this.groupedFrequenciesData[fr] || [],
-              range: filters.range,
-              specFilters: filters.specFilters[curr.idHash],
-            });
-          })
-          .flat();
-
-        return [...acc, { ...curr, frequencyData }];
-      },
-      []
-    );
-  }
-
-  public onFilter(
-    filters: {
-      range: [Dayjs, Dayjs];
-      specFilters: Record<
-        string,
-        {
-          frequencies: (number | undefined)[];
-          callsigns: {
-            who: Array<string | undefined>;
-            whom: Array<string | undefined>;
-          };
-        }
-      >;
-    },
-    detalization: Detelization
-  ) {
-    this.result = this.setFilterData(filters);
-    this.placeholders = this.getPlaceholders({
-      range: filters.range,
-      detalization,
-    });
-  }
-
-  getMinDate() {
-    const hashes = Object.keys(this.fileNameToIdMap);
-    const len = hashes.length;
-    let date: Dayjs = dayjs();
-    for (let i = 0; i < len; i++) {
-      const hash = hashes[i];
-
-      const dateCellKey = `${config.dataSheetConfig.dateCollName}3`;
-      const xslxDate: number =
-        this.Sheets[hash][config.dataSheet][dateCellKey].v;
-
-      if (xslxDate && typeof xslxDate === 'number') {
-        const dateData = this.convertExcelDateToJsDate(xslxDate, 0);
-        if (date.valueOf() > dateData.valueOf()) {
-          date = dateData;
-        }
-      }
-    }
-
-    return date;
-  }
-
   private convertExcelDateToJsDate(xDate: number, xTime: number) {
     const { y, m, d, H, M } = SSF.parse_date_code(xDate + xTime);
 
     return dayjs(new Date(y, m - 1, d, H, M));
   }
 
-  public getNetworkData(networkId: string):
+  public getNetworkData(
+    networkId: string,
+    specFilters: {
+      frequencies: Array<number>;
+      who: Array<string>;
+      whom: Array<string>;
+    }
+  ):
     | undefined
     | {
         chartData: ChartData;
         networkId: string;
         name: string;
         maxY: number;
-        frequencies: number[];
+        frequencies: Record<string, number>;
         callsigns: {
-          who: Array<string | undefined>;
-          whom: Array<string | undefined>;
+          who: Record<string, number>;
+          whom: Record<string, number>;
         };
       } {
-    const networkData = this.result.find(({ idHash }) => idHash === networkId);
+    const networkInfo = this.mapNetworkIdToNetworkInfo[networkId];
 
-    if (!networkData) {
+    if (!networkInfo) {
       alert(`Ups! Soething went wrong for id: ${networkId}`);
       return;
     }
 
-    const chartData = networkData.frequencyData.reduce((acc, curr) => {
+    const mergedDataByNetworkFrequencies: FrequencyData[] =
+      networkInfo.frequencies
+        .map((frequency) => this.mainStore[frequency])
+        .filter(Boolean)
+        .flat();
+
+    const filtered = this.filter(specFilters, mergedDataByNetworkFrequencies);
+
+    const frequencies: Record<string, number> = filtered.reduce((acc, curr) => {
+      const prevForCurrentFrequency = acc[curr.frequency] || 0;
+
+      return {
+        ...acc,
+        [curr.frequency]: prevForCurrentFrequency + 1,
+      };
+    }, {});
+
+    const callsigns: {
+      who: Record<string, number>;
+      whom: Record<string, number>;
+    } = filtered.reduce(
+      (acc, curr) => {
+        const who = (curr.who || EMPTY_CALLSIGN).trim();
+        const whom = (curr.whom || EMPTY_CALLSIGN).trim();
+        const prevWho = acc.who[who] || 0;
+        const prevWhom = acc.whom[whom] || 0;
+
+        return {
+          who: {
+            ...acc.who,
+            [who]: prevWho + 1,
+          },
+          whom: {
+            ...acc.whom,
+            [whom]: prevWhom + 1,
+          },
+        };
+      },
+      {
+        who: {},
+        whom: {},
+      }
+    );
+
+    const chartData = filtered.reduce((acc, curr) => {
       let dateKey = curr.date;
 
       if (this.detalization === 'day') {
@@ -339,100 +337,41 @@ class DataParser {
       ...Object.values(chartData).map(({ count }) => count)
     );
 
-    const cs: {
-      who: Array<string | undefined>;
-      whom: Array<string | undefined>;
-    } = networkData.frequencies.reduce(
-      (
-        acc: {
-          who: Array<string | undefined>;
-          whom: Array<string | undefined>;
-        },
-        curr
-      ) => {
-        const frData = this.groupedFrequenciesData[curr];
-        if (!frData) return acc;
-
-        const callsigns: {
-          who: Array<string | undefined>;
-          whom: Array<string | undefined>;
-        } = frData.reduce(
-          (
-            acc: {
-              who: Array<string | undefined>;
-              whom: Array<string | undefined>;
-            },
-            curr
-          ) => {
-            const who = curr.who?.toString()?.trim();
-            const whom = curr.whom?.toString()?.trim();
-
-            if (!acc.who.includes(who)) acc.who.push(who);
-            if (!acc.whom.includes(whom)) acc.whom.push(whom);
-
-            return acc;
-          },
-          { who: [], whom: [] }
-        );
-
-        return {
-          who: [...new Set([...acc.who, ...callsigns.who])],
-          whom: [...new Set([...acc.whom, ...callsigns.whom])],
-        };
-      },
-      { who: [], whom: [] }
-    );
-
     return {
       chartData,
       networkId,
       maxY,
-      name: networkData.originalName,
-      frequencies: this.networkNameToFrequncyMap[networkId].frequencies,
-      callsigns: cs,
+      name: networkInfo.originalName,
+      frequencies,
+      callsigns,
     };
   }
 
-  filter({
-    range,
-    raw,
-    specFilters,
-  }: {
-    range: [Dayjs, Dayjs];
-    raw: FrequencyData[];
+  private filter(
     specFilters: {
-      frequencies: (number | undefined)[];
-      callsigns: {
-        who: Array<string | undefined>;
-        whom: Array<string | undefined>;
-      };
-    };
-  }) {
-    const stage1 = raw.filter(({ date }) => {
-      const inRange =
-        date.valueOf() >= range[0].valueOf() &&
-        date.valueOf() <= range[1].valueOf();
-
-      return inRange;
-    });
-
-    const specCallsignsWho = specFilters?.callsigns?.who || [];
-    const specCallsignsWhom = specFilters?.callsigns?.whom || [];
+      frequencies: Array<number>;
+      who: Array<string>;
+      whom: Array<string>;
+    },
+    raw: FrequencyData[]
+  ) {
+    const specCallsignsWho = specFilters?.who || [];
+    const specCallsignsWhom = specFilters?.whom || [];
     const specFreqs = specFilters?.frequencies || [];
 
-    const stage2 = specCallsignsWho?.length
-      ? stage1.filter(({ who }) => specCallsignsWho.includes(who))
+    const stage1 = specCallsignsWho?.length
+      ? raw.filter(({ who }) => specCallsignsWho.includes(who.trim()))
+      : raw;
+
+    const stage2 = specCallsignsWhom?.length
+      ? stage1.filter(({ whom }) => specCallsignsWhom.includes(whom.trim()))
       : stage1;
 
-    const stage3 = specCallsignsWhom?.length
-      ? stage2.filter(({ whom }) => specCallsignsWhom.includes(whom))
+    const stage3 = specFreqs?.length
+      ? stage2.filter(({ frequency }) => specFreqs.includes(frequency))
       : stage2;
 
-    const stage4 = specFreqs?.length
-      ? stage3.filter(({ frequency }) => specFreqs.includes(frequency))
-      : stage3;
-
-    return stage4;
+    return stage3;
   }
 
   getPlaceholders({
@@ -468,12 +407,16 @@ class DataParser {
   }
 
   getNetworkNames(): NetworkName[] {
-    return this.result
-      .map(({ idHash, originalName, frequencyData }) => {
+    return Object.entries(this.mapNetworkIdToNetworkInfo)
+      .map(([networkId, { frequencies, originalName }]) => {
+        const filteredFrequencyData = frequencies
+          .map((fr) => this.mainStore[fr] || [])
+          .flat();
+
         return {
-          id: idHash,
+          id: networkId,
           name: originalName,
-          amountInterceptions: frequencyData.length,
+          amountInterceptions: filteredFrequencyData.length,
         };
       })
       .sort((a, b) => b.amountInterceptions - a.amountInterceptions);
