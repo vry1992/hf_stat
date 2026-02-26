@@ -126,7 +126,7 @@ export const ChartSection: FC<{
     const { label, value, closable, onClose } = tagProps;
 
     const handleClose = (e: React.MouseEvent) => {
-      e.preventDefault(); // важливо
+      e.preventDefault();
       e.stopPropagation();
 
       setRemoved((prev) => {
@@ -136,7 +136,7 @@ export const ChartSection: FC<{
         };
       });
 
-      onClose?.(e); // обовʼязково викликати оригінальний
+      onClose?.(e);
     };
 
     const count = frequencies[String(value)] ?? 0;
