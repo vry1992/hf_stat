@@ -74,8 +74,11 @@ export const Chart: FC<{
       },
 
       dataZoom: [
-        { type: 'inside', xAxisIndex: 'all' },
-        { type: 'slider', xAxisIndex: 'all', bottom: 20 },
+        {
+          type: 'slider',
+          xAxisIndex: 'all',
+          bottom: 20,
+        },
       ],
 
       xAxis: {
@@ -140,7 +143,7 @@ export const Chart: FC<{
       onChartReady={handleReady}
       option={option}
       style={{ height: 400, width: '100vw' }}
-      notMerge={true}
+      // notMerge={true}
       lazyUpdate={true}
     />
   );

@@ -2,16 +2,28 @@ import React, { ChangeEvent, FC } from 'react';
 import { NetworkName } from '../api/data-parser';
 
 export const NetworkList: FC<{
-  onUncheckAll: () => void;
   onSelect: (e: ChangeEvent<HTMLInputElement>) => void;
   data: NetworkName[];
-}> = ({ onUncheckAll, onSelect, data }) => {
+}> = ({ onSelect, data }) => {
+  const grouped = data.reduce<{
+    active: NetworkName[];
+    inactive: NetworkName[];
+  }>(
+    (acc: { active: NetworkName[]; inactive: NetworkName[] }, curr) => {
+      if (curr.amountInterceptions) {
+        acc.active.push(curr);
+      } else {
+        acc.inactive.push(curr);
+      }
+
+      return acc;
+    },
+    { active: [], inactive: [] }
+  );
+
   return (
     <div className="all_checkboxes_container">
-      <div className="select_sheet_checkbox__container">
-        <button onClick={onUncheckAll}>Зняти всі</button>
-      </div>
-      {data.map(({ id, name, amountInterceptions }) => (
+      {grouped.active.map(({ id, name, amountInterceptions }) => (
         <div key={id} className="select_sheet_checkbox__container">
           <label htmlFor={id} className="select_sheet_label">
             <input
@@ -31,6 +43,20 @@ export const NetworkList: FC<{
           </label>
         </div>
       ))}
+
+      {grouped.inactive.map(({ id, name, amountInterceptions }) => {
+        return (
+          <div key={id}>
+            <p className="select_sheet_label">
+              {name}{' '}
+              <span
+                style={{ color: amountInterceptions > 0 ? 'green' : 'red' }}>
+                ({amountInterceptions} перехоплень)
+              </span>
+            </p>
+          </div>
+        );
+      })}
     </div>
   );
 };

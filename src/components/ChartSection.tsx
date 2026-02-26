@@ -177,9 +177,8 @@ export const ChartSection: FC<{
 
   const Removed: FC<{
     list: (string | number)[];
-    key: string;
     onClose: (tagName: string | number) => void;
-  }> = ({ list, key, onClose }) => {
+  }> = ({ list, onClose }) => {
     return (
       <div
         key={Math.random()}

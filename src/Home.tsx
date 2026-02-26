@@ -58,6 +58,7 @@ export const Home = () => {
   const [detalization, setDetalization] = useState<Detelization>('hour');
   const [maxY, setMaxY] = useState<number>(0);
   const [pending, setPending] = useState(false);
+  const [fName, setFName] = useState<string[]>([]);
 
   const [charts, setCharts] = useState<
     {
@@ -102,13 +103,21 @@ export const Home = () => {
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPending(true);
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
 
+    reader.onloadstart = () => {
+      setPending(true);
+    };
+
     reader.onerror = () => {
       alert(`Помилка зчитування файлу ${file.name}`);
+      setPending(false);
+    };
+
+    reader.onabort = () => {
+      setPending(false);
     };
 
     reader.onload = (evt) => {
@@ -127,14 +136,17 @@ export const Home = () => {
             hash,
           });
 
-          onMainFilter();
+          setFName((prev) => {
+            return [...prev, fileName];
+          });
         }
       } catch (error) {
+        alert('Помилка читання файлу');
       } finally {
+        setPending(false);
       }
     };
     reader.readAsArrayBuffer(file);
-    setPending(false);
   };
 
   const getNetworkData = useCallback((networkId: string) => {
@@ -242,17 +254,14 @@ export const Home = () => {
     setMaxY(newMaxY);
   };
 
-  const onMainFilter = useCallback(() => {
+  useEffect(() => {
+    console.log('here', detalization, range);
+    dataParser.detalization = detalization;
     dataParser.onMainFilterChange({ range }, detalization);
     const netNames = dataParser.getNetworkNames();
     setNetworkNames(netNames);
     bulkUpdateCharts();
-  }, [range, detalization]);
-
-  useEffect(() => {
-    if (!networkNames.length) return;
-    onMainFilter();
-  }, [onMainFilter]);
+  }, [networkNames.length, fName.length, range, detalization]);
 
   return (
     <div>
@@ -316,11 +325,7 @@ export const Home = () => {
           <button onClick={runExport}>Експортувати в PDF</button>
         ) : null}
 
-        <NetworkList
-          onUncheckAll={() => {}}
-          onSelect={handleSheetSelection}
-          data={networkNames}
-        />
+        <NetworkList onSelect={handleSheetSelection} data={networkNames} />
       </div>
 
       {charts.map((props) => {
