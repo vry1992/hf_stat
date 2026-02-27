@@ -9,8 +9,8 @@ export const config = {
   dataSheetConfig: {
     dateCollName: 'B',
     timeCollName: 'C',
-    whoCollName: 'D',
-    whomCollName: 'E',
+    whoCollName: 'E',
+    whomCollName: 'D',
     frequencyCollName: 'F',
     dataStartRow: 3,
   },
@@ -48,6 +48,7 @@ export type FrequencyData = {
   date: Dayjs;
   who: string;
   whom: string;
+  connect: string;
   frequency: number;
 };
 
@@ -62,6 +63,7 @@ export type NetworkName = {
   id: string;
   name: string;
   amountInterceptions: number;
+  frequencyData: FrequencyData[];
 };
 
 export type ChartDataItem = { key: string; count: number };
@@ -101,6 +103,10 @@ class DataParser {
 
       return inRange;
     });
+  }
+
+  private connectBuilder(who: string, whom: string): string {
+    return `${who} => ${whom}`;
   }
 
   public onMainFilterChange(
@@ -195,12 +201,16 @@ class DataParser {
             const whoCell: CellObject | undefined = mainContent[whoCellKey];
             const whomCell: CellObject | undefined = mainContent[whomCellKey];
 
+            const who = (whoCell?.v || EMPTY_CALLSIGN).toString().trim();
+            const whom = (whomCell?.v || EMPTY_CALLSIGN).toString().trim();
+
             this.mapFrequencyToData[freqValue] = [
               ...prev,
               {
                 date: dateData,
-                who: (whoCell?.v || EMPTY_CALLSIGN).toString().trim(),
-                whom: (whomCell?.v || EMPTY_CALLSIGN).toString().trim(),
+                who,
+                whom,
+                connect: this.connectBuilder(who, whom),
                 frequency: freqValue,
               },
             ];
@@ -241,8 +251,9 @@ class DataParser {
       frequencies: Array<number>;
       who: Array<string>;
       whom: Array<string>;
+      connect: Array<string>;
     }
-  ):
+  ): Promise<
     | undefined
     | {
         chartData: ChartData;
@@ -253,98 +264,108 @@ class DataParser {
         callsigns: {
           who: Record<string, number>;
           whom: Record<string, number>;
+          connect: Record<string, number>;
         };
-      } {
-    const networkInfo = this.mapNetworkIdToNetworkInfo[networkId];
-
-    if (!networkInfo) {
-      alert(`Ups! Soething went wrong for id: ${networkId}`);
-      return;
-    }
-
-    const mergedDataByNetworkFrequencies: FrequencyData[] =
-      networkInfo.frequencies
-        .map((frequency) => this.mainStore[frequency])
-        .filter(Boolean)
-        .flat();
-
-    const filtered = this.filter(specFilters, mergedDataByNetworkFrequencies);
-
-    const frequencies: Record<string, number> = filtered.reduce((acc, curr) => {
-      const prevForCurrentFrequency = acc[curr.frequency] || 0;
-
-      return {
-        ...acc,
-        [curr.frequency]: prevForCurrentFrequency + 1,
-      };
-    }, {});
-
-    const callsigns: {
-      who: Record<string, number>;
-      whom: Record<string, number>;
-    } = filtered.reduce(
-      (acc, curr) => {
-        const who = curr.who || EMPTY_CALLSIGN;
-        const whom = curr.whom || EMPTY_CALLSIGN;
-        const prevWho = acc.who[who] || 0;
-        const prevWhom = acc.whom[whom] || 0;
-
-        return {
-          who: {
-            ...acc.who,
-            [who]: prevWho + 1,
-          },
-          whom: {
-            ...acc.whom,
-            [whom]: prevWhom + 1,
-          },
-        };
-      },
-      {
-        who: {},
-        whom: {},
       }
-    );
+  > {
+    return new Promise((resolve) => {
+      const networkInfo = this.mapNetworkIdToNetworkInfo[networkId];
 
-    const chartData = filtered.reduce((acc, curr) => {
-      let dateKey = curr.date;
-
-      if (this.detalization === 'day') {
-        dateKey = curr.date.startOf('day');
-      } else if (this.detalization === 'hour') {
-        dateKey = curr.date.startOf('hour');
-      } else {
-        dateKey = curr.date.startOf('minute');
+      if (!networkInfo) {
+        alert(`Ups! Soething went wrong for id: ${networkId}`);
+        return;
       }
-      const dateKeyStr = dateKey.format(
-        config.detalization[this.detalization].format
+
+      const mergedDataByNetworkFrequencies: FrequencyData[] =
+        networkInfo.frequencies
+          .map((frequency) => this.mainStore[frequency])
+          .filter(Boolean)
+          .flat();
+
+      const filtered = this.filter(specFilters, mergedDataByNetworkFrequencies);
+
+      const frequencies: Record<string, number> = filtered.reduce(
+        (acc, curr) => {
+          const prevForCurrentFrequency = acc[curr.frequency] || 0;
+
+          return {
+            ...acc,
+            [curr.frequency]: prevForCurrentFrequency + 1,
+          };
+        },
+        {}
       );
 
-      if (typeof acc[dateKeyStr]?.count !== 'number') {
-        return acc;
-      }
+      const callsigns: {
+        who: Record<string, number>;
+        whom: Record<string, number>;
+        connect: Record<string, number>;
+      } = filtered.reduce(
+        (acc, curr) => {
+          const who = curr.who || EMPTY_CALLSIGN;
+          const whom = curr.whom || EMPTY_CALLSIGN;
+          const prevWho = acc.who[who] || 0;
+          const prevWhom = acc.whom[whom] || 0;
+          const both = this.connectBuilder(who, whom);
+          const prevBoth = acc.connect[both] || 0;
 
-      return {
-        ...acc,
-        [dateKeyStr]: {
-          key: dateKeyStr,
-          count: acc[dateKeyStr].count + 1,
+          acc.who[who] = prevWho + 1;
+          acc.whom[whom] = prevWhom + 1;
+          acc.connect[both] = prevBoth + 1;
+
+          return acc;
         },
-      };
-    }, this.placeholders);
+        {
+          who: {},
+          whom: {},
+          connect: {},
+        }
+      );
 
-    const maxY = Math.max(
-      ...Object.values(chartData).map(({ count }) => count)
-    );
+      const chartData = filtered.reduce(
+        (acc, curr) => {
+          let dateKey = curr.date;
 
-    return {
-      chartData,
-      networkId,
-      maxY,
-      name: networkInfo.originalName,
-      frequencies,
-      callsigns,
-    };
+          if (this.detalization === 'day') {
+            dateKey = curr.date.startOf('day');
+          } else if (this.detalization === 'hour') {
+            dateKey = curr.date.startOf('hour');
+          } else {
+            dateKey = curr.date.startOf('minute');
+          }
+          const dateKeyStr = dateKey.format(
+            config.detalization[this.detalization].format
+          );
+
+          if (typeof acc[dateKeyStr]?.count !== 'number') {
+            return acc;
+          }
+
+          const newA = {
+            key: dateKeyStr,
+            count: acc[dateKeyStr].count + 1,
+          };
+
+          acc[dateKeyStr] = { ...newA };
+
+          return acc;
+        },
+        { ...this.placeholders }
+      );
+
+      const maxY = Math.max(
+        ...Object.values(chartData).map(({ count }) => count)
+      );
+
+      resolve({
+        chartData,
+        networkId,
+        maxY,
+        name: networkInfo.originalName,
+        frequencies,
+        callsigns,
+      });
+    });
   }
 
   private filter(
@@ -352,11 +373,13 @@ class DataParser {
       frequencies: Array<number>;
       who: Array<string>;
       whom: Array<string>;
+      connect: Array<string>;
     },
     raw: FrequencyData[]
   ) {
     const specCallsignsWho = specFilters?.who || [];
     const specCallsignsWhom = specFilters?.whom || [];
+    const specCallsignsConnect = specFilters?.connect || [];
     const specFreqs = specFilters?.frequencies || [];
 
     const stage1 = specCallsignsWho?.length
@@ -371,7 +394,11 @@ class DataParser {
       ? stage2.filter(({ frequency }) => specFreqs.includes(frequency))
       : stage2;
 
-    return stage3;
+    const stage4 = specCallsignsConnect?.length
+      ? stage3.filter(({ connect }) => specCallsignsConnect.includes(connect))
+      : stage3;
+
+    return stage4;
   }
 
   getPlaceholders({
@@ -417,6 +444,7 @@ class DataParser {
           id: networkId,
           name: originalName,
           amountInterceptions: filteredFrequencyData.length,
+          frequencyData: filteredFrequencyData,
         };
       })
       .sort((a, b) => b.amountInterceptions - a.amountInterceptions);

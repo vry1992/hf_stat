@@ -50,6 +50,7 @@ export const Home = () => {
         frequencies: number[];
         who: string[];
         whom: string[];
+        connect: string[];
       }
     >
   >({});
@@ -70,6 +71,7 @@ export const Home = () => {
       callsigns: {
         who: Record<string, number>;
         whom: Record<string, number>;
+        connect: Record<string, number>;
       };
     }[]
   >([]);
@@ -149,14 +151,15 @@ export const Home = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  const getNetworkData = useCallback((networkId: string) => {
+  const getNetworkData = useCallback(async (networkId: string) => {
     const filters = testFr.current?.[networkId] || {
       frequencies: [],
       who: [],
       whom: [],
+      connect: [],
     };
 
-    const networkData = dataParser.getNetworkData(networkId, filters);
+    const networkData = await dataParser.getNetworkData(networkId, filters);
 
     if (networkData) {
       setCharts((prev) => {
@@ -181,11 +184,13 @@ export const Home = () => {
   }, []);
 
   const handleSheetSelection = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
+    async (e: ChangeEvent<HTMLInputElement>) => {
       const checked = e.target.checked;
       const networkId = e.target.id;
       if (checked) {
-        getNetworkData(networkId);
+        setPending(true);
+        await getNetworkData(networkId);
+        setPending(false);
       } else {
         setCharts((prev) => {
           return [...prev.filter((chart) => chart.networkId !== networkId)];
@@ -220,7 +225,7 @@ export const Home = () => {
     dataParser.setDetalization = value;
   };
 
-  const bulkUpdateCharts = () => {
+  const bulkUpdateCharts = async () => {
     const currentNetworkIds = charts.map(({ networkId }) => networkId);
     const newCharts: {
       chartData: ChartData;
@@ -231,31 +236,31 @@ export const Home = () => {
       callsigns: {
         who: Record<string, number>;
         whom: Record<string, number>;
+        connect: Record<string, number>;
       };
     }[] = [];
 
     let newMaxY = 0;
     dataParser.setDetalization = detalization;
-    currentNetworkIds.forEach((networkId) => {
+    for await (const networkId of currentNetworkIds) {
       const filters = testFr.current?.[networkId] || {
         frequencies: [],
         who: [],
         whom: [],
+        connect: [],
       };
-      const networkData = dataParser.getNetworkData(networkId, filters);
+      const networkData = await dataParser.getNetworkData(networkId, filters);
       if (!networkData) return;
       if (newMaxY < networkData.maxY) {
         newMaxY = networkData.maxY;
       }
       newCharts.push(networkData);
-    });
-
+    }
     setCharts(newCharts);
     setMaxY(newMaxY);
   };
 
   useEffect(() => {
-    console.log('here', detalization, range);
     dataParser.detalization = detalization;
     dataParser.onMainFilterChange({ range }, detalization);
     const netNames = dataParser.getNetworkNames();
@@ -335,6 +340,7 @@ export const Home = () => {
             networkId={props.networkId}
             who={props.callsigns.who}
             whom={props.callsigns.whom}
+            connect={props.callsigns.connect}
             frequencies={props.frequencies}
             chartData={props.chartData}
             detalization={detalization}
@@ -346,6 +352,7 @@ export const Home = () => {
                 frequencies: number[];
                 who: string[];
                 whom: string[];
+                connect: string[];
               }
             ) => {
               testFr.current[networkId] = values;

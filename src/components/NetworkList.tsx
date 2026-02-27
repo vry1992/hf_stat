@@ -1,3 +1,4 @@
+import { Collapse } from 'antd';
 import React, { ChangeEvent, FC } from 'react';
 import { NetworkName } from '../api/data-parser';
 
@@ -44,19 +45,35 @@ export const NetworkList: FC<{
         </div>
       ))}
 
-      {grouped.inactive.map(({ id, name, amountInterceptions }) => {
-        return (
-          <div key={id}>
-            <p className="select_sheet_label">
-              {name}{' '}
-              <span
-                style={{ color: amountInterceptions > 0 ? 'green' : 'red' }}>
-                ({amountInterceptions} перехоплень)
-              </span>
-            </p>
-          </div>
-        );
-      })}
+      {grouped.inactive.length ? (
+        <Collapse
+          items={[
+            {
+              key: '1',
+              label: 'Мережі без перехоплень',
+              children: (
+                <>
+                  {grouped.inactive.map(({ id, name, amountInterceptions }) => {
+                    return (
+                      <div key={id}>
+                        <p className="select_sheet_label">
+                          {name}{' '}
+                          <span
+                            style={{
+                              color: amountInterceptions > 0 ? 'green' : 'red',
+                            }}>
+                            ({amountInterceptions} перехоплень)
+                          </span>
+                        </p>
+                      </div>
+                    );
+                  })}
+                </>
+              ),
+            },
+          ]}
+        />
+      ) : null}
     </div>
   );
 };
