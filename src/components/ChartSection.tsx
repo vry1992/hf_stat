@@ -5,6 +5,13 @@ import { ChartData, Detelization } from '../api/data-parser';
 import { Chart } from './Chart';
 const className = 'export-class';
 
+type FormType = {
+  frequencies: number[];
+  who: string[];
+  whom: string[];
+  connect: string[];
+};
+
 export const ChartSection: FC<{
   networkId: string;
   who: Record<string, number>;
@@ -36,19 +43,9 @@ export const ChartSection: FC<{
   name,
   onChange,
 }) => {
-  const [form] = useForm<{
-    frequencies: number[];
-    who: string[];
-    whom: string[];
-    connect: string[];
-  }>();
+  const [form] = useForm<FormType>();
 
-  const [removed, setRemoved] = useState<{
-    frequencies: number[];
-    who: string[];
-    whom: string[];
-    connect: string[];
-  }>({
+  const [removed, setRemoved] = useState<FormType>({
     frequencies: [],
     who: [],
     whom: [],
@@ -288,7 +285,12 @@ export const ChartSection: FC<{
                       form.submit();
                       setRemoved((prev) => ({
                         ...prev,
-                        whom: form.getFieldValue('whom'),
+                        whom: [
+                          ...new Set([
+                            ...prev.whom,
+                            ...form.getFieldValue('whom'),
+                          ]),
+                        ],
                       }));
                     }}
                     onChange={() => {
@@ -336,7 +338,12 @@ export const ChartSection: FC<{
                       form.submit();
                       setRemoved((prev) => ({
                         ...prev,
-                        who: form.getFieldValue('who'),
+                        who: [
+                          ...new Set([
+                            ...prev.who,
+                            ...form.getFieldValue('who'),
+                          ]),
+                        ],
                       }));
                     }}
                     open={false}
@@ -383,7 +390,12 @@ export const ChartSection: FC<{
                       form.submit();
                       setRemoved((prev) => ({
                         ...prev,
-                        connect: form.getFieldValue('connect'),
+                        connect: [
+                          ...new Set([
+                            ...prev.connect,
+                            ...form.getFieldValue('connect'),
+                          ]),
+                        ],
                       }));
                     }}
                     open={false}
@@ -430,6 +442,19 @@ export const ChartSection: FC<{
                     onChange={() => form.submit()}
                     options={fr}
                     tagRender={freqTagRender}
+                    allowClear
+                    onClear={() => {
+                      form.submit();
+                      setRemoved((prev) => ({
+                        ...prev,
+                        frequencies: [
+                          ...new Set([
+                            ...prev.frequencies,
+                            ...form.getFieldValue('whom'),
+                          ]),
+                        ],
+                      }));
+                    }}
                   />
                 </Form.Item>
               ),
