@@ -106,7 +106,7 @@ class DataParser {
   }
 
   private connectBuilder(who: string, whom: string): string {
-    return `${who} => ${whom}`;
+    return `${who}-${whom}`;
   }
 
   public onMainFilterChange(
@@ -306,9 +306,12 @@ class DataParser {
           const whom = curr.whom || EMPTY_CALLSIGN;
           const prevWho = acc.who[who] || 0;
           const prevWhom = acc.whom[whom] || 0;
-          const both = this.connectBuilder(who, whom);
-          const prevBoth = acc.connect[both] || 0;
+          const both = this.connectBuilder(who, whom)
+            .split('-')
+            .sort()
+            .join('-');
 
+          const prevBoth = acc.connect[both] || 0;
           acc.who[who] = prevWho + 1;
           acc.whom[whom] = prevWhom + 1;
           acc.connect[both] = prevBoth + 1;

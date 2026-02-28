@@ -92,10 +92,7 @@ export const ChartSection: FC<{
     const count = who[String(value)] ?? 0;
 
     return (
-      <Tag
-        closable={closable}
-        onClose={handleClose}
-        style={{ marginInlineEnd: 4 }}>
+      <Tag closable={closable} onClose={handleClose} style={{ margin: 2 }}>
         {count > 0 ? (
           <b>
             {label} ({count})
