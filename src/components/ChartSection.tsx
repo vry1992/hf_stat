@@ -91,6 +91,8 @@ export const ChartSection: FC<{
 
     const count = who[String(value)] ?? 0;
 
+    if (count === 0) return <></>;
+
     return (
       <Tag closable={closable} onClose={handleClose} style={{ margin: 2 }}>
         {count > 0 ? (
@@ -124,6 +126,8 @@ export const ChartSection: FC<{
     };
 
     const count = connect[String(value)] ?? 0;
+
+    if (count === 0) return <></>;
 
     return (
       <Tag
@@ -162,6 +166,8 @@ export const ChartSection: FC<{
 
     const count = whom[String(value)] ?? 0;
 
+    if (count === 0) return <></>;
+
     return (
       <Tag
         closable={closable}
@@ -198,6 +204,8 @@ export const ChartSection: FC<{
     };
 
     const count = frequencies[String(value)] ?? 0;
+
+    if (count === 0) return <></>;
 
     return (
       <Tag
