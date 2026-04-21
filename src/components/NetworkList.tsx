@@ -44,7 +44,7 @@ export const NetworkList: FC<{
     );
 
   return (
-    <div className="all_checkboxes_container">
+    <div className="all_checkboxes_container export-class">
       {data.length ? <NetworkListFilter onFilter={onFilter} /> : null}
 
       {grouped.active.map(({ id, name, amountInterceptions }) => (
