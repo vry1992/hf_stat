@@ -32,16 +32,12 @@ export async function exportTablesToPdf(className: string, name: string) {
     const imgWidth = canvas.width;
     const imgHeight = canvas.height;
 
-    const ratio = Math.min(
-      pdfWidth / imgWidth,
-      (pdfHeight / 2 - 2 * verticalPadding) / imgHeight
-    );
+    const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / 2 / imgHeight);
 
-    const finalWidth = imgWidth * ratio;
-    const finalHeight = imgHeight * ratio;
+    const finalWidth = pdfWidth - 5;
+    const finalHeight = imgHeight * ratio + 10;
 
-    const isTop = i % 2 === 0;
-    const yOffset = isTop ? verticalPadding : pdfHeight / 2 + verticalPadding;
+    const yOffset = verticalPadding;
 
     const xOffset = (pdfWidth - finalWidth) / 2;
 
@@ -55,10 +51,7 @@ export async function exportTablesToPdf(className: string, name: string) {
       undefined,
       'FAST'
     );
-
-    if (i % 2 === 1 && i !== tables.length - 1) {
-      pdf.addPage();
-    }
+    pdf.addPage();
   }
 
   pdf.save(`${name}.pdf`);
