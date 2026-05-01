@@ -455,7 +455,7 @@ export const ChartSection: FC<{
                         frequencies: [
                           ...new Set([
                             ...prev.frequencies,
-                            ...form.getFieldValue('whom'),
+                            ...form.getFieldValue('frequencies'),
                           ]),
                         ],
                       }));
