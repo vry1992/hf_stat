@@ -50,7 +50,7 @@ export const Home = () => {
         frequencies: number[];
         who: string[];
         whom: string[];
-        connect: string[];
+        // connect: string[];
       }
     >
   >({});
@@ -71,7 +71,7 @@ export const Home = () => {
       callsigns: {
         who: Record<string, number>;
         whom: Record<string, number>;
-        connect: Record<string, number>;
+        // connect: Record<string, number>;
       };
     }[]
   >([]);
@@ -143,6 +143,7 @@ export const Home = () => {
           });
         }
       } catch (error) {
+        console.error(error);
         alert('Помилка читання файлу');
       } finally {
         setPending(false);
@@ -156,7 +157,7 @@ export const Home = () => {
       frequencies: [],
       who: [],
       whom: [],
-      connect: [],
+      // connect: [],
     };
 
     const networkData = await dataParser.getNetworkData(networkId, filters);
@@ -236,7 +237,7 @@ export const Home = () => {
       callsigns: {
         who: Record<string, number>;
         whom: Record<string, number>;
-        connect: Record<string, number>;
+        // connect: Record<string, number>;
       };
     }[] = [];
 
@@ -247,7 +248,7 @@ export const Home = () => {
         frequencies: [],
         who: [],
         whom: [],
-        connect: [],
+        // connect: [],
       };
       const networkData = await dataParser.getNetworkData(networkId, filters);
       if (!networkData) return;
@@ -340,7 +341,7 @@ export const Home = () => {
             networkId={props.networkId}
             who={props.callsigns.who}
             whom={props.callsigns.whom}
-            connect={props.callsigns.connect}
+            // connect={props.callsigns.connect}
             frequencies={props.frequencies}
             chartData={props.chartData}
             detalization={detalization}
@@ -352,7 +353,7 @@ export const Home = () => {
                 frequencies: number[];
                 who: string[];
                 whom: string[];
-                connect: string[];
+                // connect: string[];
               }
             ) => {
               testFr.current[networkId] = values;

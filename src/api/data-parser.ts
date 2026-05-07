@@ -48,7 +48,7 @@ export type FrequencyData = {
   date: Dayjs;
   who: string;
   whom: string;
-  connect: string;
+  // connect: string;
   frequency: number;
 };
 
@@ -105,9 +105,9 @@ class DataParser {
     });
   }
 
-  private connectBuilder(who: string, whom: string): string {
-    return `${who}-${whom}`;
-  }
+  // private connectBuilder(who: string, whom: string): string {
+  //   return `${who}-${whom}`;
+  // }
 
   public onMainFilterChange(
     mainFilter: MainFilterProps,
@@ -210,7 +210,7 @@ class DataParser {
                 date: dateData,
                 who,
                 whom,
-                connect: this.connectBuilder(who, whom),
+                // connect: this.connectBuilder(who, whom),
                 frequency: freqValue,
               },
             ];
@@ -251,7 +251,7 @@ class DataParser {
       frequencies: Array<number>;
       who: Array<string>;
       whom: Array<string>;
-      connect: Array<string>;
+      // connect: Array<string>;
     }
   ): Promise<
     | undefined
@@ -264,7 +264,7 @@ class DataParser {
         callsigns: {
           who: Record<string, number>;
           whom: Record<string, number>;
-          connect: Record<string, number>;
+          // connect: Record<string, number>;
         };
       }
   > {
@@ -299,29 +299,29 @@ class DataParser {
       const callsigns: {
         who: Record<string, number>;
         whom: Record<string, number>;
-        connect: Record<string, number>;
+        // connect: Record<string, number>;
       } = filtered.reduce(
         (acc, curr) => {
           const who = curr.who || EMPTY_CALLSIGN;
           const whom = curr.whom || EMPTY_CALLSIGN;
           const prevWho = acc.who[who] || 0;
           const prevWhom = acc.whom[whom] || 0;
-          const both = this.connectBuilder(who, whom)
-            .split('-')
-            .sort()
-            .join('-');
+          // const both = this.connectBuilder(who, whom)
+          //   .split('-')
+          //   .sort()
+          //   .join('-');
 
-          const prevBoth = acc.connect[both] || 0;
+          // const prevBoth = acc.connect[both] || 0;
           acc.who[who] = prevWho + 1;
           acc.whom[whom] = prevWhom + 1;
-          acc.connect[both] = prevBoth + 1;
+          // acc.connect[both] = prevBoth + 1;
 
           return acc;
         },
         {
           who: {},
           whom: {},
-          connect: {},
+          // connect: {},
         }
       );
 
@@ -376,13 +376,13 @@ class DataParser {
       frequencies: Array<number>;
       who: Array<string>;
       whom: Array<string>;
-      connect: Array<string>;
+      // connect: Array<string>;
     },
     raw: FrequencyData[]
   ) {
     const specCallsignsWho = specFilters?.who || [];
     const specCallsignsWhom = specFilters?.whom || [];
-    const specCallsignsConnect = specFilters?.connect || [];
+    // const specCallsignsConnect = specFilters?.connect || [];
     const specFreqs = specFilters?.frequencies || [];
 
     const stage1 = specCallsignsWho?.length
@@ -397,11 +397,11 @@ class DataParser {
       ? stage2.filter(({ frequency }) => specFreqs.includes(frequency))
       : stage2;
 
-    const stage4 = specCallsignsConnect?.length
-      ? stage3.filter(({ connect }) => specCallsignsConnect.includes(connect))
-      : stage3;
+    // const stage4 = specCallsignsConnect?.length
+    //   ? stage3.filter(({ connect }) => specCallsignsConnect.includes(connect))
+    //   : stage3;
 
-    return stage4;
+    return stage3;
   }
 
   getPlaceholders({

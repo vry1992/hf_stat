@@ -9,14 +9,14 @@ type FormType = {
   frequencies: number[];
   who: string[];
   whom: string[];
-  connect: string[];
+  // connect: string[];
 };
 
 export const ChartSection: FC<{
   networkId: string;
   who: Record<string, number>;
   whom: Record<string, number>;
-  connect: Record<string, number>;
+  // connect: Record<string, number>;
   frequencies: Record<string, number>;
   chartData: ChartData;
   detalization: Detelization;
@@ -28,13 +28,13 @@ export const ChartSection: FC<{
       frequencies: number[];
       who: string[];
       whom: string[];
-      connect: string[];
+      // connect: string[];
     }
   ) => void;
 }> = ({
   who,
   whom,
-  connect,
+  // connect,
   frequencies,
   networkId,
   chartData,
@@ -43,13 +43,14 @@ export const ChartSection: FC<{
   name,
   onChange,
 }) => {
+  console.log(who, whom, chartData);
   const [form] = useForm<FormType>();
 
   const [removed, setRemoved] = useState<FormType>({
     frequencies: [],
     who: [],
     whom: [],
-    connect: [],
+    // connect: [],
   });
 
   const csWho = Object.entries(who).map(([cs]) => ({
@@ -62,10 +63,10 @@ export const ChartSection: FC<{
     value: cs,
   }));
 
-  const csConnect = Object.entries(connect).map(([cs]) => ({
-    label: cs,
-    value: cs,
-  }));
+  // const csConnect = Object.entries(connect).map(([cs]) => ({
+  //   label: cs,
+  //   value: cs,
+  // }));
 
   const fr = Object.entries(frequencies).map(([f]) => ({
     label: f,
@@ -108,44 +109,45 @@ export const ChartSection: FC<{
     );
   };
 
-  const connectTagRender: SelectProps['tagRender'] = (tagProps) => {
-    const { label, value, closable, onClose } = tagProps;
+  // const connectTagRender: SelectProps['tagRender'] = (tagProps) => {
+  //   const { label, value, closable, onClose } = tagProps;
 
-    const handleClose = (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+  //   const handleClose = (e: React.MouseEvent) => {
+  //     e.preventDefault();
+  //     e.stopPropagation();
 
-      setRemoved((prev) => {
-        return {
-          ...prev,
-          connect: [...prev.connect, value],
-        };
-      });
+  //     setRemoved((prev) => {
+  //       console.log('=>>>> ', prev, value);
+  //       return {
+  //         ...prev,
+  //         connect: [...prev.connect, value],
+  //       };
+  //     });
 
-      onClose?.(e);
-    };
+  //     onClose?.(e);
+  //   };
 
-    const count = connect[String(value)] ?? 0;
+  //   const count = connect[String(value)] ?? 0;
 
-    if (count === 0) return <></>;
+  //   if (count === 0) return <></>;
 
-    return (
-      <Tag
-        closable={closable}
-        onClose={handleClose}
-        style={{ marginInlineEnd: 4 }}>
-        {count > 0 ? (
-          <b>
-            {label} ({count})
-          </b>
-        ) : (
-          <span>
-            {label} ({count})
-          </span>
-        )}
-      </Tag>
-    );
-  };
+  //   return (
+  //     <Tag
+  //       closable={closable}
+  //       onClose={handleClose}
+  //       style={{ marginInlineEnd: 4 }}>
+  //       {count > 0 ? (
+  //         <b>
+  //           {label} ({count})
+  //         </b>
+  //       ) : (
+  //         <span>
+  //           {label} ({count})
+  //         </span>
+  //       )}
+  //     </Tag>
+  //   );
+  // };
 
   const whomTagRender: SelectProps['tagRender'] = (tagProps) => {
     const { label, value, closable, onClose } = tagProps;
@@ -266,10 +268,11 @@ export const ChartSection: FC<{
         initialValues={{
           who: csWho.map(({ value }) => value),
           whom: csWhom.map(({ value }) => value),
-          connect: csConnect.map(({ value }) => value),
+          // connect: csConnect.map(({ value }) => value),
           frequencies: fr.map(({ value }) => value),
         }}
         onFinish={(v) => {
+          console.log(v);
           onChange(networkId, v);
         }}>
         <Collapse
@@ -315,12 +318,13 @@ export const ChartSection: FC<{
           removedLabel="позивні 'кого'"
           onClose={(tagName: string | Number) => {
             const prev = form.getFieldValue('whom');
+            console.log('whom', prev, tagName);
             form.setFieldValue('whom', [...prev, tagName]);
             form.submit();
             setRemoved((prev) => {
               return {
                 ...prev,
-                whom: prev.whom.filter((w) => w !== tagName),
+                whom: [...prev.whom.filter((w) => w !== tagName)],
               };
             });
           }}
@@ -367,17 +371,19 @@ export const ChartSection: FC<{
           removedLabel="позивні 'хто'"
           onClose={(tagName: string | Number) => {
             const prev = form.getFieldValue('who');
+            console.log('who', prev, tagName);
             form.setFieldValue('who', [...prev, tagName]);
+
             form.submit();
             setRemoved((prev) => {
               return {
                 ...prev,
-                who: prev.who.filter((w) => w !== tagName),
+                who: [...prev.who.filter((w) => w !== tagName)],
               };
             });
           }}
         />
-
+        {/* 
         <Collapse
           style={{ margin: 0 }}
           items={[
@@ -419,16 +425,17 @@ export const ChartSection: FC<{
           removedLabel="позивні Хто => Кого"
           onClose={(tagName: string | Number) => {
             const prev = form.getFieldValue('connect');
+            console.log('=>>>> ', prev, tagName);
             form.setFieldValue('connect', [...prev, tagName]);
             form.submit();
             setRemoved((prev) => {
               return {
                 ...prev,
-                connect: prev.connect.filter((w) => w !== tagName),
+                connect: [...prev.connect.filter((w) => w !== tagName)],
               };
             });
           }}
-        />
+        /> */}
 
         <Collapse
           style={{ margin: 0 }}
@@ -477,7 +484,9 @@ export const ChartSection: FC<{
             setRemoved((prev) => {
               return {
                 ...prev,
-                frequencies: prev.frequencies.filter((fr) => fr !== tagName),
+                frequencies: [
+                  ...prev.frequencies.filter((fr) => fr !== tagName),
+                ],
               };
             });
           }}
